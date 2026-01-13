@@ -39,6 +39,7 @@ export interface EditorState {
 
   // Selection
   selectedElementIds: string[];
+  hoveredElementId: string | null;
 
   // Viewport
   viewport: Viewport;
@@ -128,6 +129,7 @@ export const DEFAULT_EDITOR_STATE: EditorState = {
   activeTool: 'select',
   activeShapeTool: 'rectangle',
   selectedElementIds: [],
+  hoveredElementId: null,
   viewport: { x: 0, y: 0, scale: 1 },
   isPanning: false,
   isDrawing: false,

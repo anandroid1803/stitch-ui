@@ -11,6 +11,8 @@ interface ImageElementProps {
   onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onTransform: (newAttrs: Partial<CanvasElement>) => void;
   onTransformEnd: () => void;
+  onHover: () => void;
+  onHoverEnd: () => void;
 }
 
 export function ImageElement({
@@ -19,6 +21,8 @@ export function ImageElement({
   onSelect,
   onTransform,
   onTransformEnd,
+  onHover,
+  onHoverEnd,
 }: ImageElementProps) {
   const imageRef = useRef<Konva.Image>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
@@ -108,6 +112,8 @@ export function ImageElement({
         draggable={!element.locked}
         onClick={onSelect as (e: Konva.KonvaEventObject<MouseEvent>) => void}
         onTap={onSelect as (e: Konva.KonvaEventObject<TouchEvent>) => void}
+      onMouseEnter={onHover as (e: Konva.KonvaEventObject<MouseEvent>) => void}
+      onMouseLeave={onHoverEnd as (e: Konva.KonvaEventObject<MouseEvent>) => void}
       >
         {/* Placeholder rect */}
       </Group>
@@ -127,6 +133,8 @@ export function ImageElement({
         draggable={!element.locked}
         onClick={onSelect as (e: Konva.KonvaEventObject<MouseEvent>) => void}
         onTap={onSelect as (e: Konva.KonvaEventObject<TouchEvent>) => void}
+      onMouseEnter={onHover as (e: Konva.KonvaEventObject<MouseEvent>) => void}
+      onMouseLeave={onHoverEnd as (e: Konva.KonvaEventObject<MouseEvent>) => void}
       >
         {/* Error placeholder */}
       </Group>
@@ -151,6 +159,8 @@ export function ImageElement({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onTransformEnd={handleTransformEnd}
+      onMouseEnter={onHover as (e: Konva.KonvaEventObject<MouseEvent>) => void}
+      onMouseLeave={onHoverEnd as (e: Konva.KonvaEventObject<MouseEvent>) => void}
     />
   );
 }

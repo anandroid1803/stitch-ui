@@ -11,6 +11,8 @@ interface ShapeElementProps {
   onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onTransform: (newAttrs: Partial<CanvasElement>) => void;
   onTransformEnd: () => void;
+  onHover: () => void;
+  onHoverEnd: () => void;
 }
 
 export function ShapeElement({
@@ -19,6 +21,8 @@ export function ShapeElement({
   onSelect,
   onTransform,
   onTransformEnd,
+  onHover,
+  onHoverEnd,
 }: ShapeElementProps) {
   const shapeRef = useRef<Konva.Shape>(null);
 
@@ -86,6 +90,8 @@ export function ShapeElement({
     onDragStart: handleDragStart,
     onDragEnd: handleDragEnd,
     onTransformEnd: handleTransformEnd,
+    onMouseEnter: onHover as (e: Konva.KonvaEventObject<MouseEvent>) => void,
+    onMouseLeave: onHoverEnd as (e: Konva.KonvaEventObject<MouseEvent>) => void,
   };
 
   switch (element.shapeType) {

@@ -9,7 +9,7 @@ import { TextElement } from '@/components/elements/TextElement';
 import { ShapeElement } from '@/components/elements/ShapeElement';
 import { LineElement } from '@/components/elements/LineElement';
 import { nanoid } from 'nanoid';
-import type { CanvasElement, ShapeElement as ShapeElementType } from '@/types/document';
+import type { CanvasElement, ShapeElement as ShapeElementType, LineElement as LineElementType } from '@/types/document';
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -24,9 +24,12 @@ export function Canvas() {
   const updateElement = useDocumentStore((state) => state.updateElement);
 
   const selectedElementIds = useEditorStore((state) => state.selectedElementIds);
+  const hoveredElementId = useEditorStore((state) => state.hoveredElementId);
   const selectElement = useEditorStore((state) => state.selectElement);
   const selectElements = useEditorStore((state) => state.selectElements);
   const deselectAll = useEditorStore((state) => state.deselectAll);
+  const setHoveredElement = useEditorStore((state) => state.setHoveredElement);
+  const clearHoveredElement = useEditorStore((state) => state.clearHoveredElement);
   const activeTool = useEditorStore((state) => state.activeTool);
   const setActiveTool = useEditorStore((state) => state.setActiveTool);
   const activeShapeTool = useEditorStore((state) => state.activeShapeTool);
@@ -69,30 +72,70 @@ export function Canvas() {
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
 
-  // Update transformer when selection changes
+  // Update transformer when selection or hover changes
   useEffect(() => {
     if (!transformerRef.current || !stageRef.current) return;
 
     const stage = stageRef.current;
     const transformer = transformerRef.current;
 
+    const targetIds =
+      selectedElementIds.length > 0
+        ? selectedElementIds
+        : hoveredElementId
+        ? [hoveredElementId]
+        : [];
+
     // Use requestAnimationFrame to ensure nodes are rendered before attaching transformer
     requestAnimationFrame(() => {
       if (!transformer || !stage) return;
 
-      const selectedNodes = selectedElementIds
+      if (targetIds.length === 0) {
+        transformer.nodes([]);
+        transformer.getLayer()?.batchDraw();
+        return;
+      }
+
+      const targetNodes = targetIds
         .map((id) => stage.findOne(`#${id}`))
         .filter((node): node is Konva.Node => node != null && node.getLayer() != null);
 
-      transformer.nodes(selectedNodes);
+      transformer.nodes(targetNodes);
       transformer.getLayer()?.batchDraw();
     });
-  }, [selectedElementIds]);
+  }, [selectedElementIds, hoveredElementId]);
+
+  // Use a ref to track middle mouse state that can be checked synchronously by elements
+  const isMiddleMousePanningRef = useRef(false);
+
+  // Handle middle mouse down at capture phase (before elements receive events)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleCaptureMouseDown = (e: MouseEvent) => {
+      if (e.button === 1) {
+        // Middle mouse button - set state immediately at capture phase
+        // Stop propagation to prevent Konva elements from receiving the event
+        isMiddleMousePanningRef.current = true;
+        setIsMiddleMousePanning(true);
+        setIsPanning(true);
+        setLastPanPosition({ x: e.clientX, y: e.clientY });
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    // Use capture phase to intercept before Konva elements
+    container.addEventListener('mousedown', handleCaptureMouseDown, true);
+    return () => container.removeEventListener('mousedown', handleCaptureMouseDown, true);
+  }, [setIsPanning]);
 
   // Handle global mouse up for panning (in case mouse is released outside canvas)
   useEffect(() => {
     const handleGlobalMouseUp = () => {
-      if (isMiddleMousePanning) {
+      if (isMiddleMousePanning || isMiddleMousePanningRef.current) {
+        isMiddleMousePanningRef.current = false;
         setIsMiddleMousePanning(false);
         setIsPanning(false);
         setLastPanPosition(null);
@@ -102,6 +145,112 @@ export function Canvas() {
     window.addEventListener('mouseup', handleGlobalMouseUp);
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
   }, [isMiddleMousePanning, setIsPanning]);
+
+  // Handle clipboard paste (Cmd+V for images)
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+
+        // Check if the item is an image
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const blob = item.getAsFile();
+          if (!blob) continue;
+
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const dataUrl = event.target?.result as string;
+
+            // Create image to get dimensions
+            const img = new Image();
+            img.onload = () => {
+              // Scale down if too large
+              const maxSize = 800;
+              let width = img.width;
+              let height = img.height;
+
+              if (width > maxSize || height > maxSize) {
+                const scale = maxSize / Math.max(width, height);
+                width = width * scale;
+                height = height * scale;
+              }
+
+              // Get center of viewport for placement
+              const centerX = (dimensions.width / 2 - viewport.x) / viewport.scale;
+              const centerY = (dimensions.height / 2 - viewport.y) / viewport.scale;
+
+              const newElement: CanvasElement = {
+                id: nanoid(),
+                type: 'image',
+                x: centerX - width / 2,
+                y: centerY - height / 2,
+                width,
+                height,
+                rotation: 0,
+                opacity: 1,
+                locked: false,
+                zIndex: elements.length,
+                src: dataUrl,
+                originalSrc: dataUrl,
+              };
+              addElement(newElement);
+              pushStateNow();
+              selectElement(newElement.id);
+              setActiveTool('select');
+            };
+            img.src = dataUrl;
+          };
+          reader.readAsDataURL(blob);
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [dimensions, viewport, elements.length, addElement, selectElement, setActiveTool]);
+
+  // Generate slide thumbnail when elements change
+  const updateSlideThumbnail = useDocumentStore((state) => state.updateSlideThumbnail);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !currentSlideId) return;
+
+    // Debounce thumbnail generation
+    const timeout = setTimeout(() => {
+      try {
+        // Temporarily hide transformer for clean thumbnail
+        const transformer = transformerRef.current;
+        if (transformer) transformer.hide();
+
+        // Generate thumbnail of just the slide area, accounting for viewport zoom/pan
+        const scale = stage.scaleX() || 1; // scaleX/scaleY are the same
+        const dataUrl = stage.toDataURL({
+          x: stage.x(),
+          y: stage.y(),
+          width: docSettings.width * scale,
+          height: docSettings.height * scale,
+          pixelRatio: 0.15 / scale, // keep final size consistent regardless of zoom
+          mimeType: 'image/jpeg',
+          quality: 0.7,
+        });
+
+        if (transformer) transformer.show();
+
+        // Update slide thumbnail in store
+        updateSlideThumbnail(currentSlideId, dataUrl);
+      } catch (err) {
+        console.warn('Failed to generate thumbnail:', err);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [elements, currentSlideId, updateSlideThumbnail, docSettings.width, docSettings.height]);
 
   // Handle wheel for pan/zoom
   const handleWheel = useCallback(
@@ -223,14 +372,14 @@ export function Canvas() {
 
   // Handle mouse down for drawing
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    // Handle middle mouse button for panning
+    // Middle mouse button is handled at capture phase, so skip here
     if (e.evt.button === 1) {
-      handleMiddleMouseDown(e);
       return;
     }
 
     // Handle pan tool with left click
     if (activeTool === 'pan' && e.evt.button === 0) {
+      isMiddleMousePanningRef.current = true;
       setIsMiddleMousePanning(true);
       setIsPanning(true);
       setLastPanPosition({ x: e.evt.clientX, y: e.evt.clientY });
@@ -299,13 +448,33 @@ export function Canvas() {
       setActiveTool('select'); // Reset to select tool after adding text
       setDrawingState(false);
       setIsDrawing(false);
+    } else if (activeTool === 'line') {
+      // Create line element - stroke only, no fill
+      const newElement: LineElementType = {
+        id: `temp_${nanoid()}`,
+        type: 'line',
+        x: point.x,
+        y: point.y,
+        width: 0,
+        height: 0,
+        rotation: 0,
+        opacity: 1,
+        locked: false,
+        zIndex: elements.length,
+        points: [0, 0, 0, 0], // Start and end points relative to x,y
+        stroke: strokeColor,
+        strokeWidth: strokeWidth,
+        lineCap: 'round',
+        lineJoin: 'round',
+      };
+      setTempElement(newElement);
     }
   };
 
   // Handle mouse move for drawing and panning
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    // Handle middle mouse / pan tool panning
-    if (isMiddleMousePanning && lastPanPosition) {
+    // Handle middle mouse / pan tool panning (check both state and ref)
+    if ((isMiddleMousePanning || isMiddleMousePanningRef.current) && lastPanPosition) {
       const deltaX = e.evt.clientX - lastPanPosition.x;
       const deltaY = e.evt.clientY - lastPanPosition.y;
       panBy(deltaX, deltaY);
@@ -321,7 +490,33 @@ export function Canvas() {
     const point = getCanvasPoint(stage);
     if (!point) return;
 
-    // Calculate dimensions
+    // Handle line tool differently
+    if (tempElement.type === 'line') {
+      const endX = point.x - drawStart.x;
+      const endY = point.y - drawStart.y;
+
+      // Shift key constrains to 45-degree angles
+      let finalEndX = endX;
+      let finalEndY = endY;
+
+      if (e.evt.shiftKey) {
+        const angle = Math.atan2(endY, endX);
+        const distance = Math.sqrt(endX * endX + endY * endY);
+        const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+        finalEndX = Math.cos(snappedAngle) * distance;
+        finalEndY = Math.sin(snappedAngle) * distance;
+      }
+
+      setTempElement({
+        ...tempElement,
+        points: [0, 0, finalEndX, finalEndY],
+        width: Math.abs(finalEndX),
+        height: Math.abs(finalEndY),
+      });
+      return;
+    }
+
+    // Calculate dimensions for shapes
     const width = point.x - drawStart.x;
     const height = point.y - drawStart.y;
 
@@ -347,7 +542,8 @@ export function Canvas() {
   // Handle mouse up for drawing and panning
   const handleMouseUp = (e?: Konva.KonvaEventObject<MouseEvent>) => {
     // Stop middle mouse / pan tool panning
-    if (isMiddleMousePanning) {
+    if (isMiddleMousePanning || isMiddleMousePanningRef.current) {
+      isMiddleMousePanningRef.current = false;
       setIsMiddleMousePanning(false);
       setIsPanning(false);
       setLastPanPosition(null);
@@ -360,8 +556,22 @@ export function Canvas() {
       return;
     }
 
-    // Only add if element has size
-    if (tempElement.width > 5 && tempElement.height > 5) {
+    // Check if element is valid to add
+    let isValidElement = false;
+
+    if (tempElement.type === 'line') {
+      // For lines, check if the line has any length
+      const lineElement = tempElement as LineElementType;
+      const dx = lineElement.points[2] - lineElement.points[0];
+      const dy = lineElement.points[3] - lineElement.points[1];
+      const lineLength = Math.sqrt(dx * dx + dy * dy);
+      isValidElement = lineLength > 5;
+    } else {
+      // For shapes, check width and height
+      isValidElement = tempElement.width > 5 && tempElement.height > 5;
+    }
+
+    if (isValidElement) {
       const finalElement: CanvasElement = {
         ...tempElement,
         id: nanoid(),
@@ -369,7 +579,7 @@ export function Canvas() {
       addElement(finalElement);
       pushStateNow();
       selectElement(finalElement.id);
-      setActiveTool('select'); // Reset to select tool after adding shape
+      setActiveTool('select'); // Reset to select tool after adding element
     }
 
     setDrawingState(false);
@@ -405,6 +615,19 @@ export function Canvas() {
     pushStateNow();
   };
 
+  const handleElementHover = useCallback(
+    (elementId: string) => {
+      if (activeTool !== 'select') return;
+      setHoveredElement(elementId);
+    },
+    [activeTool, setHoveredElement]
+  );
+
+  const handleElementHoverEnd = useCallback(() => {
+    if (activeTool !== 'select') return;
+    clearHoveredElement();
+  }, [activeTool, clearHoveredElement]);
+
   // Render element based on type
   const renderElement = (element: CanvasElement) => {
     const isSelected = selectedElementIds.includes(element.id);
@@ -414,6 +637,8 @@ export function Canvas() {
       onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => handleElementSelect(element.id, e),
       onTransform: (newAttrs: Partial<CanvasElement>) => handleElementTransform(element.id, newAttrs),
       onTransformEnd: handleTransformEnd,
+      onHover: () => handleElementHover(element.id),
+      onHoverEnd: handleElementHoverEnd,
     };
 
     switch (element.type) {
@@ -576,7 +801,7 @@ export function Canvas() {
   return (
     <div
       ref={containerRef}
-      className="flex-1 bg-neutral-100 overflow-hidden"
+      className="flex-1 bg-[#F7F8FA] overflow-hidden"
       style={{ cursor: getCursor() }}
       onContextMenu={(e) => {
         // Prevent context menu when middle-clicking
@@ -596,7 +821,10 @@ export function Canvas() {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={(e) => {
+          handleMouseUp(e);
+          handleElementHoverEnd();
+        }}
         scaleX={viewport.scale}
         scaleY={viewport.scale}
         x={viewport.x}
@@ -616,8 +844,8 @@ export function Canvas() {
             shadowOffset={{ x: 0, y: 4 }}
           />
 
-          {/* Elements - disable listening when drawing to allow drawing on top */}
-          <Group listening={activeTool === 'select' || activeTool === 'pan'}>
+          {/* Elements - disable listening when drawing or middle-mouse panning */}
+          <Group listening={(activeTool === 'select' || activeTool === 'pan') && !isMiddleMousePanning}>
             {[...elements]
               .sort((a, b) => a.zIndex - b.zIndex)
               .map(renderElement)}
@@ -631,6 +859,19 @@ export function Canvas() {
               onSelect={() => {}}
               onTransform={() => {}}
               onTransformEnd={() => {}}
+              onHover={() => {}}
+              onHoverEnd={() => {}}
+            />
+          )}
+          {tempElement && tempElement.type === 'line' && (
+            <LineElement
+              element={tempElement as LineElementType}
+              isSelected={false}
+              onSelect={() => {}}
+              onTransform={() => {}}
+              onTransformEnd={() => {}}
+              onHover={() => {}}
+              onHoverEnd={() => {}}
             />
           )}
 

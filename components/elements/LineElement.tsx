@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
-import { Line } from 'react-konva';
+import { Line, Circle, Group } from 'react-konva';
 import type Konva from 'konva';
 import type { LineElement as LineElementType, CanvasElement } from '@/types/document';
 
@@ -11,6 +11,8 @@ interface LineElementProps {
   onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onTransform: (newAttrs: Partial<CanvasElement>) => void;
   onTransformEnd: () => void;
+  onHover: () => void;
+  onHoverEnd: () => void;
 }
 
 export function LineElement({
@@ -19,11 +21,20 @@ export function LineElement({
   onSelect,
   onTransform,
   onTransformEnd,
+  onHover,
+  onHoverEnd,
 }: LineElementProps) {
   const lineRef = useRef<Konva.Line>(null);
+  const groupRef = useRef<Konva.Group>(null);
 
   // Track if middle mouse was pressed to prevent dragging
   const middleMouseRef = useRef(false);
+
+  // Get start and end points from the points array
+  const startX = element.points[0] ?? 0;
+  const startY = element.points[1] ?? 0;
+  const endX = element.points[2] ?? 0;
+  const endY = element.points[3] ?? 0;
 
   // Prevent dragging when middle mouse button is pressed (for canvas panning)
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -40,60 +51,129 @@ export function LineElement({
     }
   };
 
-  const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
+  // Handle dragging the entire line (from the line itself, not endpoints)
+  const handleLineDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
+    const group = groupRef.current;
+    if (!group) return;
+
     onTransform({
-      x: e.target.x(),
-      y: e.target.y(),
+      x: group.x(),
+      y: group.y(),
     });
     onTransformEnd();
   };
 
-  const handleTransformEnd = () => {
-    const node = lineRef.current;
-    if (!node) return;
+  // Handle dragging the start endpoint
+  const handleStartDrag = (e: Konva.KonvaEventObject<DragEvent>) => {
+    if (middleMouseRef.current) {
+      e.target.stopDrag();
+      return;
+    }
 
-    const scaleX = node.scaleX();
-    const scaleY = node.scaleY();
+    const node = e.target;
+    const newStartX = node.x();
+    const newStartY = node.y();
 
-    // Scale points
-    const scaledPoints = element.points.map((p, i) =>
-      i % 2 === 0 ? p * scaleX : p * scaleY
-    );
-
-    node.scaleX(1);
-    node.scaleY(1);
-
+    // Update points array with new start position
     onTransform({
-      x: node.x(),
-      y: node.y(),
-      points: scaledPoints,
-      rotation: node.rotation(),
+      points: [newStartX, newStartY, endX, endY],
     });
+  };
+
+  const handleStartDragEnd = () => {
     onTransformEnd();
   };
+
+  // Handle dragging the end endpoint
+  const handleEndDrag = (e: Konva.KonvaEventObject<DragEvent>) => {
+    if (middleMouseRef.current) {
+      e.target.stopDrag();
+      return;
+    }
+
+    const node = e.target;
+    const newEndX = node.x();
+    const newEndY = node.y();
+
+    // Update points array with new end position
+    onTransform({
+      points: [startX, startY, newEndX, newEndY],
+    });
+  };
+
+  const handleEndDragEnd = () => {
+    onTransformEnd();
+  };
+
+  // Endpoint handle size (radius)
+  const handleRadius = 6;
+  const handleStrokeWidth = 2;
 
   return (
-    <Line
+    <Group
       id={element.id}
-      ref={lineRef}
+      ref={groupRef}
       x={element.x}
       y={element.y}
-      points={element.points}
       rotation={element.rotation}
       opacity={element.opacity}
-      stroke={element.stroke}
-      strokeWidth={element.strokeWidth}
-      lineCap={element.lineCap}
-      lineJoin={element.lineJoin}
-      dash={element.dash}
-      draggable={!element.locked}
-      onClick={onSelect as (e: Konva.KonvaEventObject<MouseEvent>) => void}
-      onTap={onSelect as (e: Konva.KonvaEventObject<TouchEvent>) => void}
+      draggable={!element.locked && !isSelected} // Only drag whole line when not selected (when selected, use endpoints)
       onMouseDown={handleMouseDown}
       onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onTransformEnd={handleTransformEnd}
-      hitStrokeWidth={20} // Make line easier to click
-    />
+      onDragEnd={handleLineDragEnd}
+      onMouseEnter={onHover as (e: Konva.KonvaEventObject<MouseEvent>) => void}
+      onMouseLeave={onHoverEnd as (e: Konva.KonvaEventObject<MouseEvent>) => void}
+    >
+      {/* The line itself */}
+      <Line
+        ref={lineRef}
+        points={element.points}
+        stroke={element.stroke}
+        strokeWidth={element.strokeWidth}
+        lineCap={element.lineCap}
+        lineJoin={element.lineJoin}
+        dash={element.dash}
+        hitStrokeWidth={20}
+        onClick={onSelect as (e: Konva.KonvaEventObject<MouseEvent>) => void}
+        onTap={onSelect as (e: Konva.KonvaEventObject<TouchEvent>) => void}
+      />
+
+      {/* Endpoint handles - only show when selected */}
+      {isSelected && !element.locked && (
+        <>
+          {/* Start point handle */}
+          <Circle
+            x={startX}
+            y={startY}
+            radius={handleRadius}
+            fill="white"
+            stroke="#0ea5e9"
+            strokeWidth={handleStrokeWidth}
+            draggable
+            onMouseDown={handleMouseDown}
+            onDragStart={handleDragStart}
+            onDragMove={handleStartDrag}
+            onDragEnd={handleStartDragEnd}
+            hitStrokeWidth={10}
+          />
+
+          {/* End point handle */}
+          <Circle
+            x={endX}
+            y={endY}
+            radius={handleRadius}
+            fill="white"
+            stroke="#0ea5e9"
+            strokeWidth={handleStrokeWidth}
+            draggable
+            onMouseDown={handleMouseDown}
+            onDragStart={handleDragStart}
+            onDragMove={handleEndDrag}
+            onDragEnd={handleEndDragEnd}
+            hitStrokeWidth={10}
+          />
+        </>
+      )}
+    </Group>
   );
 }

@@ -11,6 +11,8 @@ interface TextElementProps {
   onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onTransform: (newAttrs: Partial<CanvasElement>) => void;
   onTransformEnd: () => void;
+  onHover: () => void;
+  onHoverEnd: () => void;
 }
 
 export function TextElement({
@@ -19,6 +21,8 @@ export function TextElement({
   onSelect,
   onTransform,
   onTransformEnd,
+  onHover,
+  onHoverEnd,
 }: TextElementProps) {
   const textRef = useRef<Konva.Text>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -175,6 +179,8 @@ export function TextElement({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onTransformEnd={handleTransformEnd}
+      onMouseEnter={onHover as (e: Konva.KonvaEventObject<MouseEvent>) => void}
+      onMouseLeave={onHoverEnd as (e: Konva.KonvaEventObject<MouseEvent>) => void}
     />
   );
 }

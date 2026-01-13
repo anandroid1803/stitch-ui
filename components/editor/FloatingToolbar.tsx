@@ -80,7 +80,7 @@ export function FloatingToolbar() {
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-      <div className="bg-white/50 backdrop-blur-sm border border-[#F2F3F5] rounded-xl shadow-lg px-4 py-4 flex items-center gap-10 max-w-4xl mx-auto">
+      <div className="bg-white/50 backdrop-blur-sm border-2 border-[#F2F3F5] rounded-xl shadow-lg px-6 py-6 flex items-center gap-12 max-w-4xl mx-auto">
         {/* Selection Tools */}
         <ToolButton
           active={activeTool === 'select'}
@@ -97,9 +97,9 @@ export function FloatingToolbar() {
           <DropdownMenu.Trigger asChild>
             <button
               className={cn(
-                'w-12 h-12 rounded-lg flex items-center justify-center transition-colors',
+                'w-[48px] h-[40px] rounded-lg flex items-center justify-center transition-colors group',
                 (activeTool === 'rectangle' || activeTool === 'ellipse')
-                  ? 'bg-blue-100 text-blue-600'
+                  ? 'bg-primary/10 text-primary'
                   : 'text-border hover:bg-primary/10 hover:text-primary'
               )}
               title="Shape Tools"
@@ -107,28 +107,28 @@ export function FloatingToolbar() {
               {(() => {
                 const activeShape = shapeTools.find(tool => tool.id === activeShapeTool);
                 const IconComponent = activeShape?.icon || Square;
-                return <IconComponent className="w-8 h-8" />;
+                return <IconComponent className="w-[20px] h-[20px]" />;
               })()}
-              <ChevronDown className="w-3 h-3 ml-1" />
+              <ChevronDown className="w-6 h-6 text-border group-hover:text-primary ml-1" />
             </button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content
-              className="bg-white rounded-lg shadow-lg border border-border py-1 z-50 min-w-[140px]"
+              className="bg-white rounded-lg shadow-lg border border-border py-1 z-50 min-w-[140px] outline-none"
               sideOffset={5}
             >
               {shapeTools.map((tool) => (
                 <DropdownMenu.Item
                   key={tool.id}
                   className={cn(
-                    "px-3 py-2 text-sm cursor-pointer outline-none flex items-center gap-2",
+                    "px-3 py-2 text-sm cursor-pointer outline-none flex items-center gap-2 outline-none",
                     (activeTool === 'rectangle' || activeTool === 'ellipse') && activeShapeTool === tool.id
-                      ? 'bg-blue-50 text-blue-600'
-                      : 'hover:bg-surface-light'
+                      ? 'bg-primary/10 text-primary'
+                      : 'hover:bg-primary/10 hover:text-primary outline-none'
                   )}
                   onClick={() => handleShapeToolSelect(tool.id)}
                 >
-                  <tool.icon className="w-4 h-4" />
+                  <tool.icon className="w-8 h-8" />
                   {tool.label}
                 </DropdownMenu.Item>
               ))}
@@ -136,7 +136,7 @@ export function FloatingToolbar() {
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
 
-        <div className="w-px h-6 bg-[#F2F3F5]" />
+        <div className="w-px h-6 bg-border" />
 
         {/* Pan Tool */}
         <ToolButton

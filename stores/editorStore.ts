@@ -20,6 +20,8 @@ interface EditorActions {
   selectElements: (elementIds: string[]) => void;
   deselectAll: () => void;
   toggleElementSelection: (elementId: string) => void;
+  setHoveredElement: (elementId: string | null) => void;
+  clearHoveredElement: () => void;
 
   // Viewport actions
   setViewport: (viewport: Partial<Viewport>) => void;
@@ -57,6 +59,7 @@ const initialState: EditorState = {
   activeTool: 'select',
   activeShapeTool: 'rectangle',
   selectedElementIds: [],
+  hoveredElementId: null,
   viewport: { x: 0, y: 0, scale: 1 },
   isPanning: false,
   isDrawing: false,
@@ -124,6 +127,18 @@ export const useEditorStore = create<EditorStore>()(
         } else {
           state.selectedElementIds.splice(index, 1);
         }
+      });
+    },
+
+    setHoveredElement: (elementId) => {
+      set((state) => {
+        state.hoveredElementId = elementId;
+      });
+    },
+
+    clearHoveredElement: () => {
+      set((state) => {
+        state.hoveredElementId = null;
       });
     },
 

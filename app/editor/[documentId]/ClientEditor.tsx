@@ -8,7 +8,7 @@ const EditorLayout = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-screen flex items-center justify-center bg-neutral-100">
+      <div className="h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
           <p className="text-sm text-neutral-500">Loading editor...</p>
