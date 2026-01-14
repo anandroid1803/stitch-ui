@@ -56,6 +56,16 @@ export function Canvas() {
   const [isMiddleMousePanning, setIsMiddleMousePanning] = useState(false);
   const [lastPanPosition, setLastPanPosition] = useState<{ x: number; y: number } | null>(null);
 
+  // Marquee selection state
+  const [isMarqueeSelecting, setIsMarqueeSelecting] = useState(false);
+  const [marqueeStart, setMarqueeStart] = useState<{ x: number; y: number } | null>(null);
+  const [marqueeEnd, setMarqueeEnd] = useState<{ x: number; y: number } | null>(null);
+  // Store selection state at start of marquee for Shift+marquee additive behavior
+  const marqueeInitialSelectionRef = useRef<string[]>([]);
+  const marqueeShiftKeyRef = useRef(false);
+  // Track if marquee just completed to prevent click handler from deselecting
+  const marqueeJustCompletedRef = useRef(false);
+
   // Handle container resize
   useEffect(() => {
     const updateDimensions = () => {
@@ -355,8 +365,27 @@ export function Canvas() {
     };
   };
 
+  const clientToCanvasPoint = useCallback(
+    (clientX: number, clientY: number): { x: number; y: number } | null => {
+      const container = containerRef.current;
+      if (!container) return null;
+      const rect = container.getBoundingClientRect();
+      return {
+        x: (clientX - rect.left - viewport.x) / viewport.scale,
+        y: (clientY - rect.top - viewport.y) / viewport.scale,
+      };
+    },
+    [viewport]
+  );
+
   // Handle stage click
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    // Skip if marquee selection just completed (click fires after mouseup)
+    if (marqueeJustCompletedRef.current) {
+      marqueeJustCompletedRef.current = false;
+      return;
+    }
+
     // If clicking on empty area
     if (e.target === e.target.getStage()) {
       deselectAll();
@@ -386,7 +415,24 @@ export function Canvas() {
       return;
     }
 
-    if (activeTool === 'select') return;
+    // Handle select tool - start marquee selection when clicking on empty area
+    if (activeTool === 'select' && e.evt.button === 0) {
+      // Only start marquee if clicking on stage or background
+      if (e.target === e.target.getStage() || e.target.name() === 'background') {
+        const point = clientToCanvasPoint(e.evt.clientX, e.evt.clientY);
+        if (!point) return;
+
+        // Store current state for Shift+marquee additive behavior
+        marqueeShiftKeyRef.current = e.evt.shiftKey;
+        marqueeInitialSelectionRef.current = e.evt.shiftKey ? [...selectedElementIds] : [];
+
+        setIsMarqueeSelecting(true);
+        setMarqueeStart(point);
+        setMarqueeEnd(point);
+        // Don't deselect yet - wait to see if this is a click or drag
+      }
+      return;
+    }
 
     const stage = stageRef.current;
     if (!stage) return;
@@ -482,6 +528,43 @@ export function Canvas() {
       return;
     }
 
+    // Handle marquee selection - update selection in real-time as marquee intersects elements
+    if (isMarqueeSelecting && marqueeStart) {
+      const point = clientToCanvasPoint(e.evt.clientX, e.evt.clientY);
+      if (!point) return;
+      setMarqueeEnd(point);
+
+      // Calculate marquee bounds
+      const x1 = Math.min(marqueeStart.x, point.x);
+      const y1 = Math.min(marqueeStart.y, point.y);
+      const x2 = Math.max(marqueeStart.x, point.x);
+      const y2 = Math.max(marqueeStart.y, point.y);
+
+      // Find all elements that intersect with the marquee
+      const intersectingIds = elements
+        .filter((el) => !el.locked && el.opacity > 0)
+        .filter((el) => {
+          const elX1 = el.x;
+          const elY1 = el.y;
+          const elX2 = el.x + el.width;
+          const elY2 = el.y + el.height;
+          // Check intersection (any overlap)
+          return elX1 < x2 && elX2 > x1 && elY1 < y2 && elY2 > y1;
+        })
+        .map((el) => el.id);
+
+      // Update selection in real-time
+      if (marqueeShiftKeyRef.current) {
+        // Additive mode: merge initial selection with currently intersecting
+        const merged = [...new Set([...marqueeInitialSelectionRef.current, ...intersectingIds])];
+        selectElements(merged);
+      } else {
+        // Replace mode: select exactly what's intersecting now
+        selectElements(intersectingIds);
+      }
+      return;
+    }
+
     if (!isDrawing || !drawStart || !tempElement) return;
 
     const stage = stageRef.current;
@@ -547,6 +630,35 @@ export function Canvas() {
       setIsMiddleMousePanning(false);
       setIsPanning(false);
       setLastPanPosition(null);
+      return;
+    }
+
+    // Finalize marquee selection
+    if (isMarqueeSelecting) {
+      // Check if it was just a click (no significant drag)
+      if (marqueeStart && marqueeEnd) {
+        const marqueeWidth = Math.abs(marqueeEnd.x - marqueeStart.x);
+        const marqueeHeight = Math.abs(marqueeEnd.y - marqueeStart.y);
+        const wasDrag = marqueeWidth > 3 || marqueeHeight > 3;
+
+        if (wasDrag) {
+          // Mark that marquee just completed to prevent click handler from deselecting
+          marqueeJustCompletedRef.current = true;
+        } else {
+          // It was just a click - deselect all (unless Shift was held)
+          if (!marqueeShiftKeyRef.current) {
+            deselectAll();
+          }
+        }
+        // If it was a drag, selection is already updated in real-time via handleMouseMove
+      }
+
+      // Clean up marquee state
+      setIsMarqueeSelecting(false);
+      setMarqueeStart(null);
+      setMarqueeEnd(null);
+      marqueeInitialSelectionRef.current = [];
+      marqueeShiftKeyRef.current = false;
       return;
     }
 
@@ -783,8 +895,16 @@ export function Canvas() {
     if (isMiddleMousePanning) {
       return 'grabbing';
     }
+    
+    // Show crosshair when doing marquee selection
+    if (isMarqueeSelecting) {
+      return 'crosshair';
+    }
 
     switch (activeTool) {
+      case 'select':
+        // Custom move cursor for select tool (Figma-style)
+        return 'default';
       case 'pan':
         return 'grab';
       case 'text':
@@ -822,7 +942,16 @@ export function Canvas() {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={(e) => {
-          handleMouseUp(e);
+          // Clean up marquee state - selection is already updated in real-time
+          if (isMarqueeSelecting) {
+            setIsMarqueeSelecting(false);
+            setMarqueeStart(null);
+            setMarqueeEnd(null);
+            marqueeInitialSelectionRef.current = [];
+            marqueeShiftKeyRef.current = false;
+          } else {
+            handleMouseUp(e);
+          }
           handleElementHoverEnd();
         }}
         scaleX={viewport.scale}
@@ -872,6 +1001,20 @@ export function Canvas() {
               onTransformEnd={() => {}}
               onHover={() => {}}
               onHoverEnd={() => {}}
+            />
+          )}
+
+          {/* Marquee selection box */}
+          {isMarqueeSelecting && marqueeStart && marqueeEnd && (
+            <Rect
+              x={Math.min(marqueeStart.x, marqueeEnd.x)}
+              y={Math.min(marqueeStart.y, marqueeEnd.y)}
+              width={Math.abs(marqueeEnd.x - marqueeStart.x)}
+              height={Math.abs(marqueeEnd.y - marqueeStart.y)}
+              fill="rgba(91, 33, 101, .1)"
+              stroke="rgba(91, 33, 101, 1)"
+              strokeWidth={1 / viewport.scale}
+              listening={false}
             />
           )}
 

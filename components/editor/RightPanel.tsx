@@ -6,6 +6,10 @@ import { Plus, Copy, Trash2, MoreVertical, Lock, Unlock, ArrowUp, ArrowDown, Che
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { cn } from '@/lib/utils/cn';
+import { AdvancedColorPicker } from '@/components/ui/AdvancedColorPicker';
+import { HexInput } from '@/components/ui/AdvancedColorPicker/ColorInputs';
+import { useDocumentColors } from '@/hooks/useDocumentColors';
+import { hsbToHex } from '@/lib/utils/color';
 import type { CanvasElement, TextElement as TextElementType, ShapeElement as ShapeElementType, LineElement as LineElementType } from '@/types/document';
 
 // Use explicit pixel values to avoid design system spacing conflicts
@@ -103,19 +107,19 @@ export function RightPanel() {
           {/* Overlapping user badges */}
           <div className="flex items-center">
             <div
-              className="w-12 h-12 rounded-full flex items-center justify-center text-white text-xs font-normal"
+              className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-normal"
               style={{ backgroundColor: '#1B81B0' }}
             >
               A
             </div>
             <div
-              className="w-12 h-12 rounded-full flex items-center justify-center text-white text-xs font-normal -ml-2"
+              className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-normal -ml-2"
               style={{ backgroundColor: '#B01B4F' }}
             >
               M
             </div>
             <div
-              className="w-12 h-12 rounded-full flex items-center justify-center text-white text-xs font-normal -ml-2"
+              className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-normal -ml-2"
               style={{ backgroundColor: '#651BB0' }}
             >
               Z
@@ -208,31 +212,52 @@ function SlidesView() {
               const Item = as.Item;
               const Separator = as.Separator;
               const Content = as.Content;
+              const colorInputRef = useRef<HTMLInputElement>(null);
 
               return (
                 <Content className="bg-[#F2F3F5] p-1 rounded-[16px] shadow-lg z-50 overflow-hidden" style={{ minWidth: 180}}>
                   <Item
-                    className="flex items-center hover:bg-neutral-100 cursor-pointer outline-none text-text-secondary bg-white rounded-t-[14px] rounded-b-sm mb-1" 
+                    className="flex items-center hover:bg-white/50 cursor-pointer outline-none text-text-secondary hover:text-primary bg-white rounded-t-[14px] rounded-b-sm mb-1 outline-none transition-all group" 
                     style={{ gap: 8, padding: '12px 12px', fontSize: 14, fontWeight: 500 }}
-                    onSelect={(e) => e.preventDefault()}
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      // Use setTimeout to prevent menu from closing immediately
+                      setTimeout(() => {
+                        colorInputRef.current?.click();
+                      }, 0);
+                    }}
+                    onPointerDown={(e) => {
+                      // Prevent menu from closing when clicking on the item
+                      if (e.target !== colorInputRef.current) {
+                        e.preventDefault();
+                      }
+                    }}
                   >
-                    <div className="flex items-center w-full gap-3">
+                    <div className="flex items-center w-full gap-3 group">
                       <div className="relative">
                         <div
-                          className="w-8 h-8 rounded-full cursor-pointer border border-[#CACACC]"
+                          className="w-8 h-8 rounded-full cursor-pointer border border-[#CACACC] group-hover:border-primary"
                           style={{ backgroundColor: backgroundValue }}
-                          onClick={(e) => {
+                          onPointerDown={(e) => {
                             e.stopPropagation();
-                            const colorInput = e.currentTarget.nextElementSibling as HTMLInputElement;
-                            colorInput?.click();
+                            e.preventDefault();
+                            setTimeout(() => {
+                              colorInputRef.current?.click();
+                            }, 0);
                           }}
                         />
                         <input
+                          ref={colorInputRef}
                           type="color"
                           aria-label="Slide background color"
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                           value={backgroundValue}
-                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
                           onChange={(e) => updateSlideBackground(slide.id, e.target.value)}
                         />
                       </div>
@@ -240,15 +265,15 @@ function SlidesView() {
                     </div>
                   </Item>
                   <Item
-                    className="flex items-center hover:bg-neutral-100 cursor-pointer outline-none text-text-secondary bg-white border border-white rounded-sm mb-1"
+                    className="flex items-center hover:bg-white/50 cursor-pointer outline-none text-text-secondary hover:text-primary bg-white border border-white rounded-sm mb-1 outline-none transition-all group"
                     style={{ gap: 8, padding: '12px 12px', fontSize: 14, fontWeight: 500 }}
                     onClick={() => duplicateSlide(slide.id)}
                   >
-                    <Copy style={styles.icon} />
+                    <Copy style={styles.icon} className="text-text-secondary group-hover:text-primary" />
                     Duplicate
                   </Item>
                   <Item
-                    className="flex items-center text-red-600 hover:bg-red-50 cursor-pointer outline-none text-text-secondary bg-white border border-white rounded-t-sm rounded-b-[14px]"
+                    className="flex items-center text-red-600 hover:bg-red-50 cursor-pointer outline-none text-text-secondary hover:text-red-600 bg-white border border-white rounded-t-sm rounded-b-[14px] outline-none transition-all"
                     style={{ gap: 8, padding: '12px 12px', fontSize: 14, fontWeight: 500 }}
                     onClick={() => deleteSlide(slide.id)}
                     disabled={slides.length <= 1}
@@ -583,12 +608,49 @@ function PropertiesView() {
   );
 }
 
+// Moved outside to prevent remounting on parent re-render
+const colorLabelStyle = {
+  fontSize: 11,
+  fontWeight: 500,
+  color: '#737373',
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.05em',
+};
+
+function ColorInputWithSwatch({
+  label,
+  value,
+  onChange,
+  documentColors = [],
+}: {
+  label: string;
+  value: string;
+  onChange: (hex: string) => void;
+  documentColors?: string[];
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <label style={colorLabelStyle}>{label}</label>
+      <AdvancedColorPicker
+        value={value}
+        onChange={onChange}
+        showAlpha={true}
+        showEyedropper={true}
+        showDocumentColors={true}
+        documentColors={documentColors}
+      />
+    </div>
+  );
+}
+
 interface ShapePropertiesProps {
   element: ShapeElementType;
   onUpdate: (updates: Partial<ShapeElementType>) => void;
 }
 
 function ShapeProperties({ element, onUpdate }: ShapePropertiesProps) {
+  const documentColors = useDocumentColors();
+
   const inputStyle = {
     width: '100%',
     height: 32,
@@ -614,44 +676,20 @@ function ShapeProperties({ element, onUpdate }: ShapePropertiesProps) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <label style={labelStyle}>Fill</label>
-        <div className="flex items-center" style={{ gap: 8 }}>
-          <input
-            type="color"
-            value={element.fill}
-            onChange={(e) => onUpdate({ fill: e.target.value })}
-            className="rounded-lg cursor-pointer border border-neutral-200"
-            style={{ width: 32, height: 32 }}
-          />
-          <input
-            type="text"
-            value={element.fill}
-            onChange={(e) => onUpdate({ fill: e.target.value })}
-            className="flex-1 font-mono"
-            style={inputStyle}
-          />
-        </div>
-      </div>
+      <ColorInputWithSwatch
+        label="Fill"
+        value={element.fill}
+        onChange={(color) => onUpdate({ fill: color })}
+        documentColors={documentColors}
+      />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <label style={labelStyle}>Stroke</label>
-        <div className="flex items-center" style={{ gap: 8 }}>
-          <input
-            type="color"
-            value={element.stroke}
-            onChange={(e) => onUpdate({ stroke: e.target.value })}
-            className="rounded-lg cursor-pointer border border-neutral-200"
-            style={{ width: 32, height: 32 }}
-          />
-          <input
-            type="text"
-            value={element.stroke}
-            onChange={(e) => onUpdate({ stroke: e.target.value })}
-            className="flex-1 font-mono"
-            style={inputStyle}
-          />
-        </div>
+        <ColorInputWithSwatch
+          label="Stroke"
+          value={element.stroke}
+          onChange={(color) => onUpdate({ stroke: color })}
+          documentColors={documentColors}
+        />
         <div>
           <label style={smallLabelStyle}>Stroke Width</label>
           <input
@@ -780,22 +818,33 @@ function TextProperties({ element, onUpdate }: TextPropertiesProps) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <label style={labelStyle}>Color</label>
-        <div className="flex items-center" style={{ gap: 8 }}>
-          <input
-            type="color"
-            value={element.fill}
-            onChange={(e) => onUpdate({ fill: e.target.value })}
-            className="rounded-lg cursor-pointer border border-neutral-200"
-            style={{ width: 32, height: 32 }}
-          />
-          <input
-            type="text"
-            value={element.fill}
-            onChange={(e) => onUpdate({ fill: e.target.value })}
-            className="flex-1 font-mono"
-            style={inputStyle}
-          />
-        </div>
+        <TextColorPicker element={element} onUpdate={onUpdate} />
+      </div>
+    </div>
+  );
+}
+
+// Wrapper component to use hook inside TextProperties
+function TextColorPicker({ element, onUpdate }: { element: TextElementType; onUpdate: (updates: Partial<TextElementType>) => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: '50%',
+          border: '1px solid #e5e5e5',
+          backgroundColor: element.fill,
+          flexShrink: 0,
+        }}
+      />
+      <div style={{ flex: 1 }}>
+        <HexInput
+          hex={element.fill}
+          alpha={1}
+          onChange={(hsb) => onUpdate({ fill: hsbToHex(hsb) })}
+          onDirectHexChange={(hex) => onUpdate({ fill: hex })}
+        />
       </div>
     </div>
   );
@@ -807,6 +856,8 @@ interface LinePropertiesProps {
 }
 
 function LineProperties({ element, onUpdate }: LinePropertiesProps) {
+  const documentColors = useDocumentColors();
+
   const inputStyle = {
     width: '100%',
     height: 32,
@@ -834,21 +885,25 @@ function LineProperties({ element, onUpdate }: LinePropertiesProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <label style={labelStyle}>Stroke</label>
-        <div className="flex items-center" style={{ gap: 8 }}>
-          <input
-            type="color"
-            value={element.stroke}
-            onChange={(e) => onUpdate({ stroke: e.target.value })}
-            className="rounded-lg cursor-pointer border border-neutral-200"
-            style={{ width: 32, height: 32 }}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              border: '1px solid #e5e5e5',
+              backgroundColor: element.stroke,
+              flexShrink: 0,
+            }}
           />
-          <input
-            type="text"
-            value={element.stroke}
-            onChange={(e) => onUpdate({ stroke: e.target.value })}
-            className="flex-1 font-mono"
-            style={inputStyle}
-          />
+          <div style={{ flex: 1 }}>
+            <HexInput
+              hex={element.stroke}
+              alpha={1}
+              onChange={(hsb) => onUpdate({ stroke: hsbToHex(hsb) })}
+              onDirectHexChange={(hex) => onUpdate({ stroke: hex })}
+            />
+          </div>
         </div>
         <div>
           <label style={smallLabelStyle}>Stroke Width</label>

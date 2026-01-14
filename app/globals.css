@@ -132,3 +132,9 @@ body {
   user-select: none;
   -webkit-user-select: none;
 }
+
+/* Remove focus outline for color picker inputs */
+.color-picker-input:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+}

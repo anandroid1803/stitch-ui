@@ -80,7 +80,7 @@ export function FloatingToolbar() {
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-      <div className="bg-white/50 backdrop-blur-sm border-2 border-[#F2F3F5] rounded-xl shadow-lg px-6 py-6 flex items-center gap-12 max-w-4xl mx-auto">
+      <div className="bg-white border-2 border-[#F2F3F5] rounded-xl shadow-lg px-6 py-6 flex items-center gap-12 max-w-4xl mx-auto">
         {/* Selection Tools */}
         <ToolButton
           active={activeTool === 'select'}
