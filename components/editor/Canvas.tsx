@@ -6,10 +6,10 @@ import type Konva from 'konva';
 import { useDocumentStore, useEditorStore, pushStateNow } from '@/stores';
 import { ImageElement } from '@/components/elements/ImageElement';
 import { TextElement } from '@/components/elements/TextElement';
-import { ShapeElement } from '@/components/elements/ShapeElement';
+import { VectorElement } from '@/components/elements/VectorElement';
 import { LineElement } from '@/components/elements/LineElement';
 import { nanoid } from 'nanoid';
-import type { CanvasElement, ShapeElement as ShapeElementType, LineElement as LineElementType, Shadow } from '@/types/document';
+import type { CanvasElement, VectorElement as VectorElementType, LineElement as LineElementType, Shadow } from '@/types/document';
 import { createImageFill, createSolidFill } from '@/types/fill';
 
 const DEFAULT_SHADOW: Shadow = {
@@ -187,19 +187,21 @@ export function Canvas() {
             // Create image to get dimensions
             const img = new Image();
             img.onload = () => {
-              // Check if a single shape element is selected
+              // Check if a single vector element is selected
               if (selectedElementIds.length === 1) {
                 const selectedElement = elements.find(el => el.id === selectedElementIds[0]);
 
-                // If shape is selected, add image fill to it
-                if (selectedElement && selectedElement.type === 'shape') {
-                  const shapeElement = selectedElement as ShapeElementType;
+                // If vector is selected, add image fill to it
+                if (selectedElement && selectedElement.type === 'vector') {
+                  const vectorElement = selectedElement as VectorElementType;
                   const imageFill = createImageFill(dataUrl, img.width, img.height, 1);
 
                   // Get existing fills or create from legacy fill
-                  const existingFills = shapeElement.fills && shapeElement.fills.length > 0
-                    ? shapeElement.fills
-                    : [createSolidFill(shapeElement.fill, 1)];
+                  const existingFills = vectorElement.fills && vectorElement.fills.length > 0
+                    ? vectorElement.fills
+                    : vectorElement.fill
+                    ? [createSolidFill(vectorElement.fill, 1)]
+                    : [];
 
                   // Add image fill as new layer
                   updateElement(selectedElement.id, {
@@ -210,7 +212,7 @@ export function Canvas() {
                 }
               }
 
-              // No shape selected or multiple elements selected
+              // No vector selected or multiple elements selected
               // Create rectangle with image fill instead of separate ImageElement
               const maxSize = 800;
               let width = img.width;
@@ -228,10 +230,10 @@ export function Canvas() {
 
               const imageFill = createImageFill(dataUrl, img.width, img.height, 1);
 
-              const newElement: ShapeElementType = {
+              const newElement: VectorElementType = {
                 id: nanoid(),
-                type: 'shape',
-                shapeType: 'rectangle',
+                type: 'vector',
+                vectorType: 'rectangle',
                 x: centerX - width / 2,
                 y: centerY - height / 2,
                 width,
@@ -489,11 +491,11 @@ export function Canvas() {
 
     // Create temporary element based on tool
     if (activeTool === 'rectangle' || activeTool === 'ellipse') {
-      const shapeType = activeTool === 'rectangle' ? activeShapeTool : 'ellipse';
-      const newElement: ShapeElementType = {
+      const vectorType = activeTool === 'rectangle' ? activeShapeTool : 'ellipse';
+      const newElement: VectorElementType = {
         id: `temp_${nanoid()}`,
-        type: 'shape',
-        shapeType: shapeType === 'ellipse' ? 'ellipse' : shapeType,
+        type: 'vector',
+        vectorType: vectorType === 'ellipse' ? 'ellipse' : vectorType,
         x: point.x,
         y: point.y,
         width: 0,
@@ -802,8 +804,8 @@ export function Canvas() {
         return <ImageElement key={element.id} {...commonProps} element={element} />;
       case 'text':
         return <TextElement key={element.id} {...commonProps} element={element} />;
-      case 'shape':
-        return <ShapeElement key={element.id} {...commonProps} element={element} />;
+      case 'vector':
+        return <VectorElement key={element.id} {...commonProps} element={element} />;
       case 'line':
         return <LineElement key={element.id} {...commonProps} element={element} />;
       default:
@@ -1027,9 +1029,9 @@ export function Canvas() {
           </Group>
 
           {/* Temporary element while drawing */}
-          {tempElement && tempElement.type === 'shape' && (
-            <ShapeElement
-              element={tempElement as ShapeElementType}
+          {tempElement && tempElement.type === 'vector' && (
+            <VectorElement
+              element={tempElement as VectorElementType}
               isSelected={false}
               onSelect={() => {}}
               onTransform={() => {}}

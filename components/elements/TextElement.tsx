@@ -4,6 +4,9 @@ import { useRef, useEffect, useState } from 'react';
 import { Text, Group } from 'react-konva';
 import type Konva from 'konva';
 import type { TextElement as TextElementType, CanvasElement } from '@/types/document';
+import { getEnabledFills, useFillProps } from '@/components/renderers/FillRenderer';
+import { useStrokeProps } from '@/components/renderers/StrokeRenderer';
+import { useEffectProps } from '@/components/renderers/EffectRenderer';
 
 interface TextElementProps {
   element: TextElementType;
@@ -29,6 +32,43 @@ export function TextElement({
 
   // Track if middle mouse was pressed to prevent dragging
   const middleMouseRef = useRef(false);
+
+  // Get fills (with backward compatibility)
+  const fills = element.fills && element.fills.length > 0
+    ? element.fills
+    : element.fill
+    ? [{ id: 'legacy', type: 'solid' as const, color: element.fill, enabled: true, opacity: 1 }]
+    : [];
+
+  const enabledFills = getEnabledFills(fills);
+
+  // For text, we use the first enabled fill
+  // Note: Konva Text doesn't support multiple fills natively like shapes do
+  const firstFill = enabledFills[0];
+
+  // Get fill props using shared renderer
+  // Note: For text, we pass 0 for shape offset since text is not centered
+  const fillProps = useFillProps(firstFill, element.width, element.height, 0, 0);
+
+  // Get stroke props (from new system or legacy)
+  const strokeProps = element.strokes
+    ? useStrokeProps(element.strokes)
+    : {
+        stroke: element.stroke,
+        strokeWidth: element.strokeWidth ?? 0,
+      };
+
+  // Get effect props (from new system or legacy)
+  const effectProps = element.effects
+    ? useEffectProps(element.effects)
+    : element.shadow?.enabled
+    ? {
+        shadowColor: element.shadow.color,
+        shadowBlur: element.shadow.blur,
+        shadowOffset: { x: element.shadow.offsetX, y: element.shadow.offsetY },
+        shadowOpacity: 1,
+      }
+    : {};
 
   // Prevent dragging when middle mouse button is pressed (for canvas panning)
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -105,7 +145,7 @@ export function TextElement({
     textarea.style.fontWeight = String(element.fontWeight);
     textarea.style.fontStyle = element.fontStyle;
     textarea.style.textAlign = element.textAlign;
-    textarea.style.color = element.fill;
+    textarea.style.color = element.fill || '#000000';
     textarea.style.border = '2px solid #3b82f6';
     textarea.style.borderRadius = '4px';
     textarea.style.padding = '4px';
@@ -121,15 +161,8 @@ export function TextElement({
 
     textarea.focus();
 
-    const removeTextarea = () => {
-      if (textarea.parentNode) {
-        textarea.parentNode.removeChild(textarea);
-      }
-      textNode.show();
-      setIsEditing(false);
-    };
-
-    textarea.addEventListener('keydown', (e) => {
+    let textareaRemoved = false;
+    const handleKeydown = (e: KeyboardEvent) => {
       // Exit on Escape
       if (e.key === 'Escape') {
         removeTextarea();
@@ -142,14 +175,36 @@ export function TextElement({
         removeTextarea();
         return;
       }
-    });
+    };
 
-    textarea.addEventListener('blur', () => {
+    const handleBlur = () => {
       onTransform({ content: textarea.value });
       onTransformEnd();
       removeTextarea();
-    });
+    };
+
+    const cleanupListeners = () => {
+      textarea.removeEventListener('keydown', handleKeydown);
+      textarea.removeEventListener('blur', handleBlur);
+    };
+
+    const removeTextarea = () => {
+      if (textareaRemoved) return;
+      textareaRemoved = true;
+      cleanupListeners();
+      if (textarea.parentNode) {
+        textarea.parentNode.removeChild(textarea);
+      }
+      textNode.show();
+      setIsEditing(false);
+    };
+
+    textarea.addEventListener('keydown', handleKeydown);
+    textarea.addEventListener('blur', handleBlur);
   };
+
+  // Combine element opacity with fill opacity
+  const combinedOpacity = element.opacity * (fillProps.opacity || 1);
 
   return (
     <Text
@@ -160,16 +215,16 @@ export function TextElement({
       width={element.width}
       height={element.height}
       rotation={element.rotation}
-      opacity={element.opacity}
       text={element.content}
       fontFamily={element.fontFamily}
       fontSize={element.fontSize}
       fontStyle={element.fontStyle === 'italic' ? 'italic' : 'normal'}
       fontVariant={element.fontWeight >= 600 ? 'bold' : 'normal'}
       align={element.textAlign}
-      fill={element.fill}
-      stroke={element.stroke}
-      strokeWidth={element.strokeWidth ?? 0}
+      {...fillProps}
+      {...strokeProps}
+      {...effectProps}
+      opacity={combinedOpacity}
       draggable={!element.locked}
       onClick={onSelect as (e: Konva.KonvaEventObject<MouseEvent>) => void}
       onTap={onSelect as (e: Konva.KonvaEventObject<TouchEvent>) => void}

@@ -9,28 +9,100 @@ import type {
   Slide,
   CanvasElement,
   DocumentSettings,
-  ShapeElement,
+  VectorElement,
+  TextElement,
+  Shadow,
 } from '@/types/document';
 import { createSolidFill } from '@/types/fill';
+import { createStroke } from '@/types/stroke';
+import { createShadowEffect } from '@/types/effects';
 
 /**
- * Migrate legacy fill property to fills array
- * @param element - ShapeElement to migrate
- * @returns Migrated element with fills array
+ * Migrate shadow property to effects array
  */
-function migrateFillToFills(element: ShapeElement): ShapeElement {
-  // If already has fills array, return as-is
-  if (element.fills && element.fills.length > 0) {
-    return element;
+function migrateShadowToEffect(shadow?: Shadow) {
+  if (!shadow || !shadow.enabled) return [];
+  return [createShadowEffect(shadow.offsetX, shadow.offsetY, shadow.blur, shadow.color, 1)];
+}
+
+/**
+ * Migrate ShapeElement (type: 'shape') to VectorElement (type: 'vector')
+ */
+function migrateShapeToVector(element: any): VectorElement {
+  // If already migrated, return as-is
+  if (element.type === 'vector') {
+    return element as VectorElement;
   }
 
-  // Migrate legacy fill string to fills array
-  const fillLayer = createSolidFill(element.fill, 1);
-
-  return {
+  const migrated: VectorElement = {
     ...element,
-    fills: [fillLayer],
+    type: 'vector',
+    vectorType: element.shapeType || 'rectangle',
+
+    // Universal properties
+    fills: element.fills && element.fills.length > 0
+      ? element.fills
+      : [createSolidFill(element.fill || '#3b82f6', 1)],
+    strokes: [createStroke(element.stroke || '#1d4ed8', element.strokeWidth || 2, 1)],
+    effects: migrateShadowToEffect(element.shadow),
+
+    // Legacy properties (keep for backward compatibility)
+    fill: element.fill,
+    stroke: element.stroke,
+    strokeWidth: element.strokeWidth,
   };
+
+  // Clean up old properties
+  delete (migrated as any).shapeType;
+
+  return migrated;
+}
+
+/**
+ * Migrate TextElement fill to fills array
+ */
+function migrateTextFill(element: TextElement): TextElement {
+  const migrated = { ...element };
+
+  // Migrate fill to fills array
+  if (!migrated.fills || migrated.fills.length === 0) {
+    migrated.fills = [createSolidFill(element.fill || '#000000', 1)];
+  }
+
+  // Migrate stroke to strokes array
+  if (element.stroke && (!migrated.strokes || migrated.strokes.length === 0)) {
+    migrated.strokes = [createStroke(element.stroke, element.strokeWidth || 1, 1)];
+  } else if (!migrated.strokes) {
+    migrated.strokes = [];
+  }
+
+  // Migrate shadow to effects
+  if (!migrated.effects || migrated.effects.length === 0) {
+    migrated.effects = migrateShadowToEffect(element.shadow);
+  }
+
+  return migrated;
+}
+
+/**
+ * Migrate any element to new universal system
+ */
+function migrateElement(element: CanvasElement | any): CanvasElement {
+  // Migrate based on type (use 'any' to allow legacy 'shape' type)
+  if ((element as any).type === 'shape' || (element.type === 'vector' && !element.fills)) {
+    return migrateShapeToVector(element);
+  } else if (element.type === 'text') {
+    return migrateTextFill(element as TextElement);
+  } else if (element.type === 'image' || element.type === 'line') {
+    // Add universal properties if missing
+    const migrated = { ...element };
+    if (!migrated.fills) migrated.fills = [];
+    if (!migrated.strokes) migrated.strokes = [];
+    if (!migrated.effects) migrated.effects = migrateShadowToEffect(element.shadow);
+    return migrated;
+  }
+
+  return element;
 }
 
 interface DocumentState {
@@ -87,17 +159,12 @@ export const useDocumentStore = create<DocumentState>()(
 
     initializeDocument: (doc) => {
       set((state) => {
-        // Migrate shape elements with legacy fill to new fills array
+        // Migrate all elements to new universal system
         const migratedDoc = {
           ...doc,
           slides: doc.slides.map(slide => ({
             ...slide,
-            elements: slide.elements.map(element => {
-              if (element.type === 'shape') {
-                return migrateFillToFills(element as ShapeElement);
-              }
-              return element;
-            }),
+            elements: slide.elements.map(element => migrateElement(element)),
           })),
         };
 

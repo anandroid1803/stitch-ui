@@ -10,42 +10,10 @@ import { AdvancedColorPicker } from '@/components/ui/AdvancedColorPicker';
 import { HexInput } from '@/components/ui/AdvancedColorPicker/ColorInputs';
 import { useDocumentColors } from '@/hooks/useDocumentColors';
 import { hsbToHex, parseColor, addAlphaToHex } from '@/lib/utils/color';
-import type { CanvasElement, TextElement as TextElementType, ShapeElement as ShapeElementType, LineElement as LineElementType } from '@/types/document';
+import type { CanvasElement, TextElement as TextElementType, VectorElement as VectorElementType, LineElement as LineElementType } from '@/types/document';
 import { IconRadiusTopLeft } from '@tabler/icons-react';
-import type { Shadow } from '@/types/document';
 import { FillLayersPanel } from './FillLayersPanel';
-
-// Shadow presets
-const SHADOW_PRESETS: Shadow[] = [
-  {
-    offsetX: 0,
-    offsetY: 0,
-    blur: 0,
-    color: 'rgba(0, 0, 0, 0)',
-    enabled: false,
-  },
-  {
-    offsetX: 0,
-    offsetY: 2,
-    blur: 4,
-    color: 'rgba(0, 0, 0, 0.1)',
-    enabled: true,
-  },
-  {
-    offsetX: 0,
-    offsetY: 4,
-    blur: 8,
-    color: 'rgba(0, 0, 0, 0.15)',
-    enabled: true,
-  },
-  {
-    offsetX: 0,
-    offsetY: 8,
-    blur: 16,
-    color: 'rgba(0, 0, 0, 0.2)',
-    enabled: true,
-  },
-];
+import { StrokeLayersPanel } from './StrokeLayersPanel';
 
 // Use explicit pixel values to avoid design system spacing conflicts
 const styles = {
@@ -466,7 +434,15 @@ function PropertiesView() {
     );
   }
 
-  const element = selectedElement!;
+  if (!selectedElement) {
+    return (
+      <div style={styles.padding}>
+        <p style={{ fontSize: 14, fontWeight: 500 }}>No element selected</p>
+      </div>
+    );
+  }
+
+  const element = selectedElement;
 
   const inputStyle = {
     width: '100%',
@@ -497,7 +473,7 @@ function PropertiesView() {
         {/* Header */}
         <div className="flex items-center justify-between bg-white/50 border border-white px-2 py-2 rounded-t-lg rounded-b-sm">
           <span style={{ fontSize: 14, fontWeight: 500, textTransform: 'capitalize' }} className="text-primary">
-            {element.type === 'shape' ? (element as ShapeElementType).shapeType : element.type}
+            {element.type === 'vector' ? (element as VectorElementType).vectorType : element.type}
           </span>
           <div className="flex" style={{ gap: 4 }}>
             <button
@@ -599,7 +575,7 @@ function PropertiesView() {
                   <input
                     type="number"
                     min={0}
-                    value={(element as ShapeElementType).cornerRadius ?? 0}
+                    value={(element as VectorElementType).cornerRadius ?? 0}
                     onChange={(e) => handleUpdate({ cornerRadius: parseFloat(e.target.value) || 0 })}
                     style={{ ...inputStyle, paddingLeft: 32 }}
                   />
@@ -608,12 +584,16 @@ function PropertiesView() {
         </div>
 
         {/* Type-specific properties */}
-        {element.type === 'shape' && (
-          <ShapeProperties element={element as ShapeElementType} onUpdate={handleUpdate} />
+        {element.type === 'vector' && (
+          <ShapeProperties element={element as VectorElementType} onUpdate={handleUpdate} />
         )}
 
         {element.type === 'text' && (
           <TextProperties element={element as TextElementType} onUpdate={handleUpdate} />
+        )}
+
+        {element.type === 'image' && (
+          <ImageProperties element={element} onUpdate={handleUpdate} />
         )}
 
         {element.type === 'line' && (
@@ -660,8 +640,8 @@ function ColorInputWithSwatch({
 }
 
 interface ShapePropertiesProps {
-  element: ShapeElementType;
-  onUpdate: (updates: Partial<ShapeElementType>) => void;
+  element: VectorElementType;
+  onUpdate: (updates: Partial<CanvasElement>) => void;
 }
 
 function ShapeProperties({ element, onUpdate }: ShapePropertiesProps) {
@@ -703,79 +683,96 @@ function ShapeProperties({ element, onUpdate }: ShapePropertiesProps) {
         documentColors={documentColors}
       />
 
-      {/* Stroke */}
-      <div className="flex flex-col gap-1 px-2 py-4 bg-white/50 border border-white rounded-sm mt-2">
-        <ColorInputWithSwatch
-          label="Stroke"
-          value={element.stroke}
-          onChange={(color) => onUpdate({ stroke: color })}
-          documentColors={documentColors}
-        />
-        <div style={{ position: 'relative', backgroundColor: '#F2F3F5', padding: '2px', borderRadius: '10px' }}>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            style={{
-              position: 'absolute',
-              left: 8,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              pointerEvents: 'none',
-              color: '#CACACC',
-            }}
-          >
-            <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-            <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-          </svg>
-          <input
-            type="number"
-            min={0}
-            max={50}
-            value={element.strokeWidth}
-            onChange={(e) => onUpdate({ strokeWidth: parseFloat(e.target.value) || 0 })}
-            style={{ ...inputStyle, paddingLeft: 32 }}
-          />
-        </div>
-      </div>
+      {/* Stroke - replaced with StrokeLayersPanel */}
+      <StrokeLayersPanel
+        element={element}
+        onUpdate={onUpdate}
+        documentColors={documentColors}
+      />
 
       {/* Shadow */}
       <div className="flex flex-col gap-[8px] px-2 py-4 bg-white/50 border border-white rounded-sm mt-2">
         <label style={labelStyle}>Shadow</label>
         <div className="flex flex-col gap-1">
-          <div className="grid grid-cols-4 gap-1">
-            {SHADOW_PRESETS.map((preset, index) => (
-              <button
-                key={index}
-                onClick={() => onUpdate({ shadow: preset })}
-                className={cn(
-                  'h-[44px] rounded-lg border transition-all relative overflow-hidden',
-                   element.shadow?.enabled === preset.enabled &&
-                   element.shadow.offsetX === preset.offsetX &&
-                   element.shadow.offsetY === preset.offsetY &&
-                   element.shadow.blur === preset.blur &&
-                   element.shadow.color === preset.color
-                    ? 'border-border bg-[#f2f3f5]'
-                    : 'border-neutral-100 hover:bg-[#f2f3f5] bg-white'
-                )}
-              >
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div
-                    className="w-8 h-8 rounded"
-                    style={{
-                      backgroundColor: '#fff',
-                      border: '1px solid #f2f3f5',
-                      boxShadow: preset.enabled
-                        ? `${preset.offsetX}px ${preset.offsetY}px ${preset.blur}px ${preset.color}`
-                        : 'none',
-                    }}
-                  />
-                </div>
-              </button>
-            ))}
+          <div className="grid grid-cols-2" style={{ gap: 8 }}>
+            <div>
+              <label style={smallLabelStyle}>X</label>
+              <div style={{ position: 'relative', backgroundColor: '#F2F3F5', padding: '2px', borderRadius: '10px' }}>
+                <input
+                  type="number"
+                  value={Math.round(element.shadow?.offsetX ?? 0)}
+                  onChange={(e) => {
+                    const currentShadow = element.shadow ?? {
+                      offsetX: 0,
+                      offsetY: 0,
+                      blur: 0,
+                      color: '#000000',
+                      enabled: true,
+                    };
+                    onUpdate({
+                      shadow: {
+                        ...currentShadow,
+                        offsetX: parseFloat(e.target.value) || 0,
+                        enabled: true,
+                      },
+                    });
+                  }}
+                  style={{ ...inputStyle, paddingLeft: 8 }}
+                />
+              </div>
+            </div>
+            <div>
+              <label style={smallLabelStyle}>Y</label>
+              <div style={{ position: 'relative', backgroundColor: '#F2F3F5', padding: '2px', borderRadius: '10px' }}>
+                <input
+                  type="number"
+                  value={Math.round(element.shadow?.offsetY ?? 0)}
+                  onChange={(e) => {
+                    const currentShadow = element.shadow ?? {
+                      offsetX: 0,
+                      offsetY: 0,
+                      blur: 0,
+                      color: '#000000',
+                      enabled: true,
+                    };
+                    onUpdate({
+                      shadow: {
+                        ...currentShadow,
+                        offsetY: parseFloat(e.target.value) || 0,
+                        enabled: true,
+                      },
+                    });
+                  }}
+                  style={{ ...inputStyle, paddingLeft: 8 }}
+                />
+              </div>
+            </div>
+          </div>
+          <div>
+            <label style={smallLabelStyle}>Blur</label>
+            <div style={{ position: 'relative', backgroundColor: '#F2F3F5', padding: '2px', borderRadius: '10px' }}>
+              <input
+                type="number"
+                value={Math.round(element.shadow?.blur ?? 0)}
+                onChange={(e) => {
+                  const currentShadow = element.shadow ?? {
+                    offsetX: 0,
+                    offsetY: 0,
+                    blur: 0,
+                    color: '#000000',
+                    enabled: true,
+                  };
+                  onUpdate({
+                    shadow: {
+                      ...currentShadow,
+                      blur: parseFloat(e.target.value) || 0,
+                      enabled: true,
+                    },
+                  });
+                }}
+                style={{ ...inputStyle, paddingLeft: 8 }}
+              />
+            </div>
           </div>
           <div className="flex flex-col gap-2">
             <AdvancedColorPicker
@@ -810,10 +807,12 @@ function ShapeProperties({ element, onUpdate }: ShapePropertiesProps) {
 
 interface TextPropertiesProps {
   element: TextElementType;
-  onUpdate: (updates: Partial<TextElementType>) => void;
+  onUpdate: (updates: Partial<CanvasElement>) => void;
 }
 
 function TextProperties({ element, onUpdate }: TextPropertiesProps) {
+  const documentColors = useDocumentColors();
+
   const inputStyle = {
     width: '100%',
     height: 32,
@@ -905,16 +904,18 @@ function TextProperties({ element, onUpdate }: TextPropertiesProps) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <label style={labelStyle}>Color</label>
-        <TextColorPicker element={element} onUpdate={onUpdate} />
-      </div>
+      {/* Fill - using universal FillLayersPanel */}
+      <FillLayersPanel
+        element={element}
+        onUpdate={onUpdate}
+        documentColors={documentColors}
+      />
     </div>
   );
 }
 
 // Wrapper component to use hook inside TextProperties
-function TextColorPicker({ element, onUpdate }: { element: TextElementType; onUpdate: (updates: Partial<TextElementType>) => void }) {
+function TextColorPicker({ element, onUpdate }: { element: TextElementType; onUpdate: (updates: Partial<CanvasElement>) => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <div
@@ -923,13 +924,13 @@ function TextColorPicker({ element, onUpdate }: { element: TextElementType; onUp
           height: 32,
           borderRadius: '50%',
           border: '1px solid #e5e5e5',
-          backgroundColor: element.fill,
+          backgroundColor: element.fill || '#000000',
           flexShrink: 0,
         }}
       />
       <div style={{ flex: 1 }}>
         <HexInput
-          hex={element.fill}
+          hex={element.fill || '#000000'}
           alpha={1}
           onChange={(hsb) => onUpdate({ fill: hsbToHex(hsb) })}
           onDirectHexChange={(hex) => onUpdate({ fill: hex })}
@@ -939,9 +940,41 @@ function TextColorPicker({ element, onUpdate }: { element: TextElementType; onUp
   );
 }
 
+interface ImagePropertiesProps {
+  element: CanvasElement;
+  onUpdate: (updates: Partial<CanvasElement>) => void;
+}
+
+function ImageProperties({ element, onUpdate }: ImagePropertiesProps) {
+  const documentColors = useDocumentColors();
+
+  const labelStyle = {
+    fontSize: 11,
+    fontWeight: 500,
+    color: '#737373',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Fill overlays - using universal FillLayersPanel */}
+      <FillLayersPanel
+        element={element}
+        onUpdate={onUpdate}
+        documentColors={documentColors}
+      />
+
+      <div style={{ fontSize: 12, color: '#a3a3a3', fontStyle: 'italic' }}>
+        Add color or image overlays to your image
+      </div>
+    </div>
+  );
+}
+
 interface LinePropertiesProps {
   element: LineElementType;
-  onUpdate: (updates: Partial<LineElementType>) => void;
+  onUpdate: (updates: Partial<CanvasElement>) => void;
 }
 
 function LineProperties({ element, onUpdate }: LinePropertiesProps) {
@@ -972,40 +1005,12 @@ function LineProperties({ element, onUpdate }: LinePropertiesProps) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <label style={labelStyle}>Stroke</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              border: '1px solid #e5e5e5',
-              backgroundColor: element.stroke,
-              flexShrink: 0,
-            }}
-          />
-          <div style={{ flex: 1 }}>
-            <HexInput
-              hex={element.stroke}
-              alpha={1}
-              onChange={(hsb) => onUpdate({ stroke: hsbToHex(hsb) })}
-              onDirectHexChange={(hex) => onUpdate({ stroke: hex })}
-            />
-          </div>
-        </div>
-        <div>
-          <label style={smallLabelStyle}>Stroke Width</label>
-          <input
-            type="number"
-            min={1}
-            max={50}
-            value={element.strokeWidth}
-            onChange={(e) => onUpdate({ strokeWidth: parseFloat(e.target.value) || 1 })}
-            style={inputStyle}
-          />
-        </div>
-      </div>
+      {/* Stroke - replaced with StrokeLayersPanel */}
+      <StrokeLayersPanel
+        element={element}
+        onUpdate={onUpdate}
+        documentColors={documentColors}
+      />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <label style={labelStyle}>Line Cap</label>
@@ -1059,8 +1064,8 @@ function LayersView() {
                     return `Text: "${(element as TextElementType).content.substring(0, 15)}${(element as TextElementType).content.length > 15 ? '...' : ''}"`;
                   case 'image':
                     return 'Image';
-                  case 'shape':
-                    return `Shape: ${(element as ShapeElementType).shapeType}`;
+                  case 'vector':
+                    return `Vector: ${(element as VectorElementType).vectorType}`;
                   case 'line':
                     return 'Line';
                   default:

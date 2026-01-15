@@ -1,16 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, ChevronDown } from 'lucide-react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { Plus } from 'lucide-react';
 import { FillLayerItem } from './FillLayerItem';
-import type { ShapeElement } from '@/types/document';
+import type { CanvasElement } from '@/types/document';
 import type { FillLayer } from '@/types/fill';
-import { createSolidFill, createImageFill } from '@/types/fill';
+import { createSolidFill } from '@/types/fill';
 
 interface FillLayersPanelProps {
-  element: ShapeElement;
-  onUpdate: (updates: Partial<ShapeElement>) => void;
+  element: CanvasElement;
+  onUpdate: (updates: Partial<CanvasElement>) => void;
   documentColors?: string[];
 }
 
@@ -19,19 +17,17 @@ export function FillLayersPanel({
   onUpdate,
   documentColors = [],
 }: FillLayersPanelProps) {
-  // Get fills array (with backward compatibility)
-  const fills = element.fills && element.fills.length > 0
+  // Get fills array (with backward compatibility for all element types)
+  // Only use legacy fill if fills array doesn't exist (undefined/null), not if it's empty
+  const legacyFill = 'fill' in element ? (element as any).fill : undefined;
+  const fills = element.fills !== undefined && element.fills !== null
     ? element.fills
-    : [createSolidFill(element.fill, 1)];
+    : legacyFill
+    ? [createSolidFill(legacyFill, 1)]
+    : [];
 
   const handleAddSolidFill = () => {
     const newFill = createSolidFill('#3b82f6', 1);
-    onUpdate({ fills: [...fills, newFill] });
-  };
-
-  const handleAddImageFill = () => {
-    // Create placeholder image fill - user will add image via picker
-    const newFill = createImageFill('', undefined, undefined, 1);
     onUpdate({ fills: [...fills, newFill] });
   };
 
@@ -43,11 +39,12 @@ export function FillLayersPanel({
 
   const handleDeleteFill = (index: number) => {
     const updatedFills = fills.filter((_, i) => i !== index);
-    // Keep at least one fill
-    if (updatedFills.length === 0) {
-      updatedFills.push(createSolidFill('#3b82f6', 1));
-    }
-    onUpdate({ fills: updatedFills });
+    // Allow empty fills for all element types - VectorElement can render without fills
+    // Also clear legacy fill to avoid fallback rehydrating it
+    onUpdate({
+      fills: updatedFills,
+      ...(updatedFills.length === 0 ? { fill: undefined } : {}),
+    });
   };
 
   const labelStyle = {
@@ -58,9 +55,21 @@ export function FillLayersPanel({
     letterSpacing: '0.05em',
   };
 
+  const iconStyle = { width: 12, height: 12 };
+
   return (
-    <div className="flex flex-col gap-2 px-2 py-4 bg-white/50 border border-white rounded-sm mt-2">
-      <label style={labelStyle}>Fill</label>
+    <div className="flex flex-col gap-6 px-2 py-4 bg-white/50 border border-white rounded-sm mt-2">
+      <div className="flex items-center justify-between">
+        <label style={labelStyle}>Fill</label>
+        <button
+          onClick={handleAddSolidFill}
+          className="hover:bg-primary/10 rounded-lg transition-colors group"
+          title="Add Fill"
+          style={{ padding: 6 }}
+        >
+          <Plus style={iconStyle} className="text-text-tertiary group-hover:text-primary" />
+        </button>
+      </div>
 
       {/* Fill layers list - render in reverse order (top layer first visually) */}
       <div className="flex flex-col gap-2">
@@ -78,42 +87,6 @@ export function FillLayersPanel({
           );
         })}
       </div>
-
-      {/* Add fill button with dropdown */}
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild>
-          <button
-            className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Fill
-            <ChevronDown className="w-3 h-3 text-neutral-400" />
-          </button>
-        </DropdownMenu.Trigger>
-
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content
-            className="bg-white rounded-lg shadow-lg border border-neutral-200 p-1 z-50 min-w-[140px]"
-            sideOffset={5}
-          >
-            <DropdownMenu.Item
-              className="flex items-center gap-2 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 rounded cursor-pointer outline-none"
-              onSelect={handleAddSolidFill}
-            >
-              <div className="w-4 h-4 rounded bg-blue-500" />
-              Solid Color
-            </DropdownMenu.Item>
-
-            <DropdownMenu.Item
-              className="flex items-center gap-2 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 rounded cursor-pointer outline-none"
-              onSelect={handleAddImageFill}
-            >
-              <div className="w-4 h-4 rounded border border-neutral-300 bg-gradient-to-br from-purple-400 to-pink-400" />
-              Image Fill
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
     </div>
   );
 }

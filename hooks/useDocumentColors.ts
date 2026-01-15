@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useDocumentStore } from '@/stores';
-import type { CanvasElement, TextElement, ShapeElement, LineElement } from '@/types/document';
+import type { CanvasElement, TextElement, VectorElement, LineElement } from '@/types/document';
 
 /**
  * Hook to extract all unique colors used in the current document/slide
@@ -64,13 +64,13 @@ function extractColorsFromElement(element: CanvasElement, colors: Set<string>): 
       break;
     }
 
-    case 'shape': {
-      const shapeEl = element as ShapeElement;
-      if (shapeEl.fill) {
-        colors.add(shapeEl.fill.toLowerCase());
+    case 'vector': {
+      const vectorEl = element as VectorElement;
+      if (vectorEl.fill) {
+        colors.add(vectorEl.fill.toLowerCase());
       }
-      if (shapeEl.stroke) {
-        colors.add(shapeEl.stroke.toLowerCase());
+      if (vectorEl.stroke) {
+        colors.add(vectorEl.stroke.toLowerCase());
       }
       break;
     }

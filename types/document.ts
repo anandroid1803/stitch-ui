@@ -1,6 +1,8 @@
 // Document Types for Stitch Moodboard Platform
 
 import type { FillLayer } from './fill';
+import type { StrokeLayer } from './stroke';
+import type { Effect } from './effects';
 
 export interface Document {
   id: string;
@@ -31,10 +33,10 @@ export interface Slide {
 export type CanvasElement =
   | ImageElement
   | TextElement
-  | ShapeElement
+  | VectorElement
   | LineElement;
 
-export type ElementType = 'image' | 'text' | 'shape' | 'line';
+export type ElementType = 'image' | 'text' | 'vector' | 'line';
 
 export interface Shadow {
   offsetX: number;
@@ -56,6 +58,13 @@ export interface BaseElement {
   locked: boolean;
   zIndex: number;
   name?: string;
+
+  // Universal properties (Figma-style)
+  fills?: FillLayer[];
+  strokes?: StrokeLayer[];
+  effects?: Effect[];
+
+  // Legacy (deprecated, kept for backward compatibility)
   shadow?: Shadow;
 }
 
@@ -89,25 +98,32 @@ export interface TextElement extends BaseElement {
   fontWeight: number;
   fontStyle: 'normal' | 'italic';
   textAlign: 'left' | 'center' | 'right';
-  fill: string;
-  stroke?: string;
-  strokeWidth?: number;
   lineHeight?: number;
   letterSpacing?: number;
+
+  // Legacy (deprecated, kept for backward compatibility)
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
 }
 
-export type ShapeType = 'rectangle' | 'ellipse' | 'triangle' | 'polygon' | 'star';
+export type VectorType = 'rectangle' | 'ellipse' | 'triangle' | 'polygon' | 'star';
 
-export interface ShapeElement extends BaseElement {
-  type: 'shape';
-  shapeType: ShapeType;
-  fill: string; // Legacy: single color (kept for backward compatibility)
-  fills?: FillLayer[]; // New: multi-layer fill system
-  stroke: string;
-  strokeWidth: number;
+export interface VectorElement extends BaseElement {
+  type: 'vector';
+  vectorType: VectorType;
   cornerRadius?: number;
   sides?: number;
+
+  // Legacy (deprecated, kept for backward compatibility)
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
 }
+
+// Legacy type alias for backward compatibility
+export type ShapeType = VectorType;
+export type ShapeElement = VectorElement;
 
 export interface LineElement extends BaseElement {
   type: 'line';
@@ -135,28 +151,75 @@ export const DEFAULT_TEXT_STYLE = {
   fontWeight: 400,
   fontStyle: 'normal' as const,
   textAlign: 'left' as const,
+  fills: [
+    {
+      id: 'default-text-fill',
+      type: 'solid' as const,
+      color: '#000000',
+      enabled: true,
+      opacity: 1,
+    },
+  ],
+  strokes: [],
+  effects: [],
+  // Legacy
   fill: '#000000',
 };
 
-export const DEFAULT_SHAPE_STYLE = {
-  fill: '#3b82f6', // Legacy fallback
+export const DEFAULT_VECTOR_STYLE = {
   fills: [
     {
-      id: 'default',
+      id: 'default-vector-fill',
       type: 'solid' as const,
       color: '#3b82f6',
       enabled: true,
       opacity: 1,
     },
   ],
+  strokes: [
+    {
+      id: 'default-vector-stroke',
+      enabled: true,
+      color: '#1d4ed8',
+      width: 2,
+      opacity: 1,
+      lineCap: 'butt' as const,
+      lineJoin: 'miter' as const,
+    },
+  ],
+  effects: [],
+  cornerRadius: 0,
+  // Legacy
+  fill: '#3b82f6',
   stroke: '#1d4ed8',
   strokeWidth: 2,
-  cornerRadius: 0,
 };
 
+// Legacy alias
+export const DEFAULT_SHAPE_STYLE = DEFAULT_VECTOR_STYLE;
+
 export const DEFAULT_LINE_STYLE = {
+  strokes: [
+    {
+      id: 'default-line-stroke',
+      enabled: true,
+      color: '#000000',
+      width: 2,
+      opacity: 1,
+      lineCap: 'round' as const,
+      lineJoin: 'round' as const,
+    },
+  ],
+  effects: [],
+  // Legacy
   stroke: '#000000',
   strokeWidth: 2,
   lineCap: 'round' as const,
   lineJoin: 'round' as const,
+};
+
+export const DEFAULT_IMAGE_STYLE = {
+  fills: [],
+  strokes: [],
+  effects: [],
 };
