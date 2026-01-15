@@ -213,7 +213,7 @@ export function AdvancedColorPicker({
             type="button"
             className={cn(
               'w-full flex items-center gap-0.5 bg-[#f2f3f5] rounded-[10px] p-1',
-              'hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-blue-500',
+              'hover:opacity-95 focus:outline-none focus:ring-1 focus:ring-primary',
               disabled && 'opacity-50 cursor-not-allowed'
             )}
           >

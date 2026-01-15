@@ -22,6 +22,7 @@ export function useKeyboardShortcuts() {
   const deleteElements = useDocumentStore((state) => state.deleteElements);
   const duplicateElements = useDocumentStore((state) => state.duplicateElements);
   const getCurrentSlide = useDocumentStore((state) => state.getCurrentSlide);
+  const reorderElement = useDocumentStore((state) => state.reorderElement);
 
   const undo = useHistoryStore((state) => state.undo);
   const redo = useHistoryStore((state) => state.redo);
@@ -187,6 +188,29 @@ export function useKeyboardShortcuts() {
         }
       }
 
+      // [ and ] - move layers up/down
+      if ((e.key === '[' || e.key === ']') && !cmdKey && !e.altKey && !e.shiftKey) {
+        if (selectedElementIds.length > 0) {
+          e.preventDefault();
+          const getElement = useDocumentStore.getState().getElement;
+          
+          selectedElementIds.forEach((id) => {
+            const element = getElement(id);
+            if (element && !element.locked) {
+              if (e.key === ']') {
+                // Move forward (up)
+                reorderElement(id, 'up');
+              } else if (e.key === '[') {
+                // Move backward (down)
+                reorderElement(id, 'down');
+              }
+            }
+          });
+          pushStateNow();
+          return;
+        }
+      }
+
       // Space - temporarily switch to pan tool
       if (e.key === ' ' && !e.repeat) {
         e.preventDefault();
@@ -205,6 +229,7 @@ export function useKeyboardShortcuts() {
       deleteElements,
       duplicateElements,
       getCurrentSlide,
+      reorderElement,
       undo,
       redo,
       canUndo,

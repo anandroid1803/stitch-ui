@@ -34,6 +34,14 @@ export type CanvasElement =
 
 export type ElementType = 'image' | 'text' | 'shape' | 'line';
 
+export interface Shadow {
+  offsetX: number;
+  offsetY: number;
+  blur: number;
+  color: string;
+  enabled: boolean;
+}
+
 export interface BaseElement {
   id: string;
   type: ElementType;
@@ -46,6 +54,7 @@ export interface BaseElement {
   locked: boolean;
   zIndex: number;
   name?: string;
+  shadow?: Shadow;
 }
 
 export interface ImageElement extends BaseElement {

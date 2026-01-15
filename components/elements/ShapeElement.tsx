@@ -92,6 +92,13 @@ export function ShapeElement({
     onTransformEnd: handleTransformEnd,
     onMouseEnter: onHover as (e: Konva.KonvaEventObject<MouseEvent>) => void,
     onMouseLeave: onHoverEnd as (e: Konva.KonvaEventObject<MouseEvent>) => void,
+    // Apply shadow if enabled - Konva uses shadowOffset as an object
+    ...(element.shadow?.enabled && {
+      shadowColor: element.shadow.color,
+      shadowBlur: element.shadow.blur,
+      shadowOffset: { x: element.shadow.offsetX, y: element.shadow.offsetY },
+      shadowOpacity: 1,
+    }),
   };
 
   switch (element.shapeType) {

@@ -9,13 +9,47 @@ import { cn } from '@/lib/utils/cn';
 import { AdvancedColorPicker } from '@/components/ui/AdvancedColorPicker';
 import { HexInput } from '@/components/ui/AdvancedColorPicker/ColorInputs';
 import { useDocumentColors } from '@/hooks/useDocumentColors';
-import { hsbToHex } from '@/lib/utils/color';
+import { hsbToHex, parseColor, addAlphaToHex } from '@/lib/utils/color';
 import type { CanvasElement, TextElement as TextElementType, ShapeElement as ShapeElementType, LineElement as LineElementType } from '@/types/document';
+import { IconRadiusTopLeft } from '@tabler/icons-react';
+import type { Shadow } from '@/types/document';
+
+// Shadow presets
+const SHADOW_PRESETS: Shadow[] = [
+  {
+    offsetX: 0,
+    offsetY: 0,
+    blur: 0,
+    color: 'rgba(0, 0, 0, 0)',
+    enabled: false,
+  },
+  {
+    offsetX: 0,
+    offsetY: 2,
+    blur: 4,
+    color: 'rgba(0, 0, 0, 0.1)',
+    enabled: true,
+  },
+  {
+    offsetX: 0,
+    offsetY: 4,
+    blur: 8,
+    color: 'rgba(0, 0, 0, 0.15)',
+    enabled: true,
+  },
+  {
+    offsetX: 0,
+    offsetY: 8,
+    blur: 16,
+    color: 'rgba(0, 0, 0, 0.2)',
+    enabled: true,
+  },
+];
 
 // Use explicit pixel values to avoid design system spacing conflicts
 const styles = {
   panel: { width: 208 },
-  icon: { width: 16, height: 16 },
+  icon: { width: 12, height: 12},
   iconSm: { width: 12, height: 12 },
   input: { height: 32 },
   colorInput: { width: 32, height: 32 },
@@ -85,7 +119,7 @@ export function RightPanel() {
         className="bg-[#F2F3F5] p-2 flex flex-col overflow-hidden rounded-2xl "
         style={{ ...styles.panel, height: 'calc(100vh - 16px)' }}
       >
-        <div className="bg-white rounded-lg h-full overflow-hidden flex flex-col">
+        <div className="rounded-lg h-full overflow-hidden flex flex-col">
           <PropertiesView />
         </div>
       </div>
@@ -457,12 +491,12 @@ function PropertiesView() {
   };
 
   return (
-    <div className="overflow-y-auto">
-      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="overflow-y-auto flex flex-col">
+      <div className='gap-2'>
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <span style={{ fontSize: 14, fontWeight: 500, textTransform: 'capitalize' }} className="text-neutral-700">
-            {element.type}
+        <div className="flex items-center justify-between bg-white/50 border border-white px-2 py-2 rounded-t-lg rounded-b-sm">
+          <span style={{ fontSize: 14, fontWeight: 500, textTransform: 'capitalize' }} className="text-primary">
+            {element.type === 'shape' ? (element as ShapeElementType).shapeType : element.type}
           </span>
           <div className="flex" style={{ gap: 4 }}>
             <button
@@ -489,105 +523,86 @@ function PropertiesView() {
         </div>
 
         {/* Position */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="flex flex-col gap-2 px-2 py-4 bg-white/50 border border-white rounded-sm mt-2">
           <label style={labelStyle}>Position</label>
           <div className="grid grid-cols-2" style={{ gap: 8 }}>
             <div>
               <label style={smallLabelStyle}>X</label>
-              <input
-                type="number"
-                value={Math.round(element.x)}
-                onChange={(e) => handleUpdate({ x: parseFloat(e.target.value) || 0 })}
-                style={inputStyle}
-              />
+              <div style={{ position: 'relative', backgroundColor: '#F2F3F5', padding: '2px', borderRadius: '10px' }}>
+                <input
+                  type="number"
+                  value={Math.round(element.x)}
+                  onChange={(e) => handleUpdate({ x: parseFloat(e.target.value) || 0 })}
+                  style={{ ...inputStyle, paddingLeft: 8 }}
+                />
+              </div>
             </div>
             <div>
               <label style={smallLabelStyle}>Y</label>
-              <input
-                type="number"
-                value={Math.round(element.y)}
-                onChange={(e) => handleUpdate({ y: parseFloat(e.target.value) || 0 })}
-                style={inputStyle}
-              />
+              <div style={{ position: 'relative', backgroundColor: '#F2F3F5', padding: '2px', borderRadius: '10px' }}>
+                <input
+                  type="number"
+                  value={Math.round(element.y)}
+                  onChange={(e) => handleUpdate({ y: parseFloat(e.target.value) || 0 })}
+                  style={{ ...inputStyle, paddingLeft: 8 }}
+                />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Size */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="flex flex-col gap-2 px-2 py-4 bg-white/50 border border-white rounded-sm mt-2">
           <label style={labelStyle}>Size</label>
           <div className="grid grid-cols-2" style={{ gap: 8 }}>
             <div>
               <label style={smallLabelStyle}>W</label>
-              <input
-                type="number"
-                value={Math.round(element.width)}
-                onChange={(e) => handleUpdate({ width: parseFloat(e.target.value) || 1 })}
-                style={inputStyle}
-              />
+              <div style={{ position: 'relative', backgroundColor: '#F2F3F5', padding: '2px', borderRadius: '10px' }}>
+                <input
+                  type="number"
+                  value={Math.round(element.width)}
+                  onChange={(e) => handleUpdate({ width: parseFloat(e.target.value) || 1 })}
+                  style={{ ...inputStyle, paddingLeft: 8 }}
+                />
+              </div>
             </div>
             <div>
               <label style={smallLabelStyle}>H</label>
-              <input
-                type="number"
-                value={Math.round(element.height)}
-                onChange={(e) => handleUpdate({ height: parseFloat(e.target.value) || 1 })}
-                style={inputStyle}
-              />
+              <div style={{ position: 'relative', backgroundColor: '#F2F3F5', padding: '2px', borderRadius: '10px' }}>
+                <input
+                  type="number"
+                  value={Math.round(element.height)}
+                  onChange={(e) => handleUpdate({ height: parseFloat(e.target.value) || 1 })}
+                  style={{ ...inputStyle, paddingLeft: 8 }}
+                />
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Rotation & Opacity */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div className="grid grid-cols-2" style={{ gap: 8 }}>
-            <div>
-              <label style={smallLabelStyle}>Rotation</label>
+        <div className="flex flex-row gap-2">
+          <div className="flex flex-col gap-4 px-2 py-4 bg-white/50 border border-white rounded-sm mt-2 w-full">
+            <label style={labelStyle}>ROTATION</label>
+            <div style={{ position: 'relative', backgroundColor: '#F2F3F5', padding: '2px', borderRadius: '10px' }}>
               <input
                 type="number"
                 value={Math.round(element.rotation)}
                 onChange={(e) => handleUpdate({ rotation: parseFloat(e.target.value) || 0 })}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={smallLabelStyle}>Opacity</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={Math.round(element.opacity * 100)}
-                onChange={(e) =>
-                  handleUpdate({
-                    opacity: Math.min(1, Math.max(0, parseFloat(e.target.value) / 100)) || 1,
-                  })
-                }
-                style={inputStyle}
+                style={{ ...inputStyle, paddingLeft: 8 }}
               />
             </div>
           </div>
-        </div>
-
-        {/* Layer controls */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={labelStyle}>Layer</label>
-          <div className="flex" style={{ gap: 4 }}>
-            {[
-              { icon: ChevronsUp, action: 'top' as const, title: 'Bring to Front' },
-              { icon: ArrowUp, action: 'up' as const, title: 'Bring Forward' },
-              { icon: ArrowDown, action: 'down' as const, title: 'Send Backward' },
-              { icon: ChevronsDown, action: 'bottom' as const, title: 'Send to Back' },
-            ].map(({ icon: Icon, action, title }) => (
-              <button
-                key={action}
-                onClick={() => reorderElement(element.id, action)}
-                className="flex-1 flex items-center justify-center hover:bg-neutral-100 rounded-lg border border-neutral-200"
-                title={title}
-                style={{ height: 32 }}
-              >
-                <Icon style={styles.icon} />
-              </button>
-            ))}
+          <div className="flex flex-col gap-4 px-2 py-4 bg-white/50 border border-white rounded-sm mt-2 w-full">
+            <label style={labelStyle}>RADIUS</label>
+            <div style={{ position: 'relative', backgroundColor: '#F2F3F5', padding: '2px', borderRadius: '10px' }}>
+                  <IconRadiusTopLeft style={{ width:'16px', position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#CACACC', zIndex: 1 }} />
+                  <input
+                    type="number"
+                    min={0}
+                    value={(element as ShapeElementType).cornerRadius ?? 0}
+                    onChange={(e) => handleUpdate({ cornerRadius: parseFloat(e.target.value) || 0 })}
+                    style={{ ...inputStyle, paddingLeft: 32 }}
+                  />
+                </div>
           </div>
         </div>
 
@@ -650,14 +665,18 @@ interface ShapePropertiesProps {
 
 function ShapeProperties({ element, onUpdate }: ShapePropertiesProps) {
   const documentColors = useDocumentColors();
+  const shadowColorValue = (() => {
+    const raw = element.shadow?.color ?? '#000000';
+    const parsed = parseColor(raw);
+    return addAlphaToHex(parsed.hex, parsed.alpha);
+  })();
 
   const inputStyle = {
     width: '100%',
     height: 32,
     padding: '0 8px',
     fontSize: 14,
-    border: '1px solid #e5e5e5',
-    borderRadius: 8,
+    borderRadius: '8px',
     backgroundColor: 'white',
   };
 
@@ -675,47 +694,119 @@ function ShapeProperties({ element, onUpdate }: ShapePropertiesProps) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <ColorInputWithSwatch
-        label="Fill"
-        value={element.fill}
-        onChange={(color) => onUpdate({ fill: color })}
-        documentColors={documentColors}
-      />
+    <>
+      {/* Fill */}
+      <div className="flex flex-col gap-2 px-2 py-4 bg-white/50 border border-white rounded-sm mt-2">
+        <ColorInputWithSwatch
+          label="Fill"
+          value={element.fill}
+          onChange={(color) => onUpdate({ fill: color })}
+          documentColors={documentColors}
+        />
+      </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Stroke */}
+      <div className="flex flex-col gap-1 px-2 py-4 bg-white/50 border border-white rounded-sm mt-2">
         <ColorInputWithSwatch
           label="Stroke"
           value={element.stroke}
           onChange={(color) => onUpdate({ stroke: color })}
           documentColors={documentColors}
         />
-        <div>
-          <label style={smallLabelStyle}>Stroke Width</label>
+        <div style={{ position: 'relative', backgroundColor: '#F2F3F5', padding: '2px', borderRadius: '10px' }}>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            style={{
+              position: 'absolute',
+              left: 8,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              pointerEvents: 'none',
+              color: '#CACACC',
+            }}
+          >
+            <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+            <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+          </svg>
           <input
             type="number"
             min={0}
             max={50}
             value={element.strokeWidth}
             onChange={(e) => onUpdate({ strokeWidth: parseFloat(e.target.value) || 0 })}
-            style={inputStyle}
+            style={{ ...inputStyle, paddingLeft: 32 }}
           />
         </div>
       </div>
 
-      {element.shapeType === 'rectangle' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={labelStyle}>Corner Radius</label>
-          <input
-            type="number"
-            min={0}
-            value={element.cornerRadius ?? 0}
-            onChange={(e) => onUpdate({ cornerRadius: parseFloat(e.target.value) || 0 })}
-            style={inputStyle}
-          />
+      {/* Shadow */}
+      <div className="flex flex-col gap-[8px] px-2 py-4 bg-white/50 border border-white rounded-sm mt-2">
+        <label style={labelStyle}>Shadow</label>
+        <div className="flex flex-col gap-1">
+          <div className="grid grid-cols-4 gap-1">
+            {SHADOW_PRESETS.map((preset, index) => (
+              <button
+                key={index}
+                onClick={() => onUpdate({ shadow: preset })}
+                className={cn(
+                  'h-[44px] rounded-lg border transition-all relative overflow-hidden',
+                   element.shadow?.enabled === preset.enabled &&
+                   element.shadow.offsetX === preset.offsetX &&
+                   element.shadow.offsetY === preset.offsetY &&
+                   element.shadow.blur === preset.blur &&
+                   element.shadow.color === preset.color
+                    ? 'border-border bg-[#f2f3f5]'
+                    : 'border-neutral-100 hover:bg-[#f2f3f5] bg-white'
+                )}
+              >
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div
+                    className="w-8 h-8 rounded"
+                    style={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #f2f3f5',
+                      boxShadow: preset.enabled
+                        ? `${preset.offsetX}px ${preset.offsetY}px ${preset.blur}px ${preset.color}`
+                        : 'none',
+                    }}
+                  />
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-col gap-2">
+            <AdvancedColorPicker
+              value={shadowColorValue}
+              onChange={(color) => {
+                const currentShadow = element.shadow ?? {
+                  offsetX: 0,
+                  offsetY: 0,
+                  blur: 0,
+                  color: '#000000',
+                  enabled: true,
+                };
+                onUpdate({
+                  shadow: {
+                    ...currentShadow,
+                    color,
+                    enabled: true,
+                  },
+                });
+              }}
+              showAlpha={true}
+              showEyedropper={true}
+              showDocumentColors={true}
+              documentColors={documentColors}
+            />
+          </div>
         </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 }
 

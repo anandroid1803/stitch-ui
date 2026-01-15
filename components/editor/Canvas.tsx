@@ -9,7 +9,15 @@ import { TextElement } from '@/components/elements/TextElement';
 import { ShapeElement } from '@/components/elements/ShapeElement';
 import { LineElement } from '@/components/elements/LineElement';
 import { nanoid } from 'nanoid';
-import type { CanvasElement, ShapeElement as ShapeElementType, LineElement as LineElementType } from '@/types/document';
+import type { CanvasElement, ShapeElement as ShapeElementType, LineElement as LineElementType, Shadow } from '@/types/document';
+
+const DEFAULT_SHADOW: Shadow = {
+  offsetX: 0,
+  offsetY: 0,
+  blur: 0,
+  color: 'rgba(0, 0, 0, 0)',
+  enabled: false,
+};
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -206,6 +214,7 @@ export function Canvas() {
                 zIndex: elements.length,
                 src: dataUrl,
                 originalSrc: dataUrl,
+                shadow: { ...DEFAULT_SHADOW },
               };
               addElement(newElement);
               pushStateNow();
@@ -465,6 +474,7 @@ export function Canvas() {
         stroke: strokeColor,
         strokeWidth: strokeWidth,
         cornerRadius: 0,
+        shadow: { ...DEFAULT_SHADOW },
       };
       setTempElement(newElement);
     } else if (activeTool === 'text') {
@@ -487,6 +497,7 @@ export function Canvas() {
         fontStyle: 'normal',
         textAlign: 'left',
         fill: '#000000',
+        shadow: { ...DEFAULT_SHADOW },
       };
       addElement(newElement);
       pushStateNow();
@@ -512,6 +523,7 @@ export function Canvas() {
         strokeWidth: strokeWidth,
         lineCap: 'round',
         lineJoin: 'round',
+        shadow: { ...DEFAULT_SHADOW },
       };
       setTempElement(newElement);
     }
@@ -836,6 +848,7 @@ export function Canvas() {
                 zIndex: elements.length + index,
                 src: dataUrl,
                 originalSrc: dataUrl,
+                shadow: { ...DEFAULT_SHADOW },
               };
               addElement(newElement);
               pushStateNow();
@@ -874,6 +887,7 @@ export function Canvas() {
             zIndex: elements.length,
             src: droppedUrl,
             originalSrc: droppedUrl,
+            shadow: { ...DEFAULT_SHADOW },
           };
           addElement(newElement);
           pushStateNow();
