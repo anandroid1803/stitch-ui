@@ -13,6 +13,7 @@ import { hsbToHex, parseColor, addAlphaToHex } from '@/lib/utils/color';
 import type { CanvasElement, TextElement as TextElementType, ShapeElement as ShapeElementType, LineElement as LineElementType } from '@/types/document';
 import { IconRadiusTopLeft } from '@tabler/icons-react';
 import type { Shadow } from '@/types/document';
+import { FillLayersPanel } from './FillLayersPanel';
 
 // Shadow presets
 const SHADOW_PRESETS: Shadow[] = [
@@ -695,15 +696,12 @@ function ShapeProperties({ element, onUpdate }: ShapePropertiesProps) {
 
   return (
     <>
-      {/* Fill */}
-      <div className="flex flex-col gap-2 px-2 py-4 bg-white/50 border border-white rounded-sm mt-2">
-        <ColorInputWithSwatch
-          label="Fill"
-          value={element.fill}
-          onChange={(color) => onUpdate({ fill: color })}
-          documentColors={documentColors}
-        />
-      </div>
+      {/* Fill - replaced with FillLayersPanel */}
+      <FillLayersPanel
+        element={element}
+        onUpdate={onUpdate}
+        documentColors={documentColors}
+      />
 
       {/* Stroke */}
       <div className="flex flex-col gap-1 px-2 py-4 bg-white/50 border border-white rounded-sm mt-2">

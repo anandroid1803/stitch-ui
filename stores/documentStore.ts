@@ -9,7 +9,29 @@ import type {
   Slide,
   CanvasElement,
   DocumentSettings,
+  ShapeElement,
 } from '@/types/document';
+import { createSolidFill } from '@/types/fill';
+
+/**
+ * Migrate legacy fill property to fills array
+ * @param element - ShapeElement to migrate
+ * @returns Migrated element with fills array
+ */
+function migrateFillToFills(element: ShapeElement): ShapeElement {
+  // If already has fills array, return as-is
+  if (element.fills && element.fills.length > 0) {
+    return element;
+  }
+
+  // Migrate legacy fill string to fills array
+  const fillLayer = createSolidFill(element.fill, 1);
+
+  return {
+    ...element,
+    fills: [fillLayer],
+  };
+}
 
 interface DocumentState {
   // Document data
@@ -65,8 +87,22 @@ export const useDocumentStore = create<DocumentState>()(
 
     initializeDocument: (doc) => {
       set((state) => {
-        state.document = doc;
-        state.currentSlideId = doc.slides[0]?.id ?? null;
+        // Migrate shape elements with legacy fill to new fills array
+        const migratedDoc = {
+          ...doc,
+          slides: doc.slides.map(slide => ({
+            ...slide,
+            elements: slide.elements.map(element => {
+              if (element.type === 'shape') {
+                return migrateFillToFills(element as ShapeElement);
+              }
+              return element;
+            }),
+          })),
+        };
+
+        state.document = migratedDoc;
+        state.currentSlideId = migratedDoc.slides[0]?.id ?? null;
         state.hasUnsavedChanges = false;
       });
     },

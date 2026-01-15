@@ -10,6 +10,7 @@ import { ShapeElement } from '@/components/elements/ShapeElement';
 import { LineElement } from '@/components/elements/LineElement';
 import { nanoid } from 'nanoid';
 import type { CanvasElement, ShapeElement as ShapeElementType, LineElement as LineElementType, Shadow } from '@/types/document';
+import { createImageFill, createSolidFill } from '@/types/fill';
 
 const DEFAULT_SHADOW: Shadow = {
   offsetX: 0,
@@ -186,7 +187,31 @@ export function Canvas() {
             // Create image to get dimensions
             const img = new Image();
             img.onload = () => {
-              // Scale down if too large
+              // Check if a single shape element is selected
+              if (selectedElementIds.length === 1) {
+                const selectedElement = elements.find(el => el.id === selectedElementIds[0]);
+
+                // If shape is selected, add image fill to it
+                if (selectedElement && selectedElement.type === 'shape') {
+                  const shapeElement = selectedElement as ShapeElementType;
+                  const imageFill = createImageFill(dataUrl, img.width, img.height, 1);
+
+                  // Get existing fills or create from legacy fill
+                  const existingFills = shapeElement.fills && shapeElement.fills.length > 0
+                    ? shapeElement.fills
+                    : [createSolidFill(shapeElement.fill, 1)];
+
+                  // Add image fill as new layer
+                  updateElement(selectedElement.id, {
+                    fills: [...existingFills, imageFill],
+                  });
+                  pushStateNow();
+                  return; // Don't create new element
+                }
+              }
+
+              // No shape selected or multiple elements selected
+              // Create rectangle with image fill instead of separate ImageElement
               const maxSize = 800;
               let width = img.width;
               let height = img.height;
@@ -201,9 +226,12 @@ export function Canvas() {
               const centerX = (dimensions.width / 2 - viewport.x) / viewport.scale;
               const centerY = (dimensions.height / 2 - viewport.y) / viewport.scale;
 
-              const newElement: CanvasElement = {
+              const imageFill = createImageFill(dataUrl, img.width, img.height, 1);
+
+              const newElement: ShapeElementType = {
                 id: nanoid(),
-                type: 'image',
+                type: 'shape',
+                shapeType: 'rectangle',
                 x: centerX - width / 2,
                 y: centerY - height / 2,
                 width,
@@ -212,10 +240,14 @@ export function Canvas() {
                 opacity: 1,
                 locked: false,
                 zIndex: elements.length,
-                src: dataUrl,
-                originalSrc: dataUrl,
+                fill: '#000000', // Legacy fallback
+                fills: [imageFill],
+                stroke: 'transparent',
+                strokeWidth: 0,
+                cornerRadius: 0,
                 shadow: { ...DEFAULT_SHADOW },
               };
+
               addElement(newElement);
               pushStateNow();
               selectElement(newElement.id);
@@ -231,7 +263,7 @@ export function Canvas() {
 
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [dimensions, viewport, elements.length, addElement, selectElement, setActiveTool]);
+  }, [dimensions, viewport, elements, selectedElementIds, addElement, selectElement, setActiveTool, updateElement, pushStateNow]);
 
   // Generate slide thumbnail when elements change
   const updateSlideThumbnail = useDocumentStore((state) => state.updateSlideThumbnail);

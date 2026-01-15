@@ -1,5 +1,7 @@
 // Document Types for Stitch Moodboard Platform
 
+import type { FillLayer } from './fill';
+
 export interface Document {
   id: string;
   name: string;
@@ -99,7 +101,8 @@ export type ShapeType = 'rectangle' | 'ellipse' | 'triangle' | 'polygon' | 'star
 export interface ShapeElement extends BaseElement {
   type: 'shape';
   shapeType: ShapeType;
-  fill: string;
+  fill: string; // Legacy: single color (kept for backward compatibility)
+  fills?: FillLayer[]; // New: multi-layer fill system
   stroke: string;
   strokeWidth: number;
   cornerRadius?: number;
@@ -136,7 +139,16 @@ export const DEFAULT_TEXT_STYLE = {
 };
 
 export const DEFAULT_SHAPE_STYLE = {
-  fill: '#3b82f6',
+  fill: '#3b82f6', // Legacy fallback
+  fills: [
+    {
+      id: 'default',
+      type: 'solid' as const,
+      color: '#3b82f6',
+      enabled: true,
+      opacity: 1,
+    },
+  ],
   stroke: '#1d4ed8',
   strokeWidth: 2,
   cornerRadius: 0,
