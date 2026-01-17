@@ -11,6 +11,8 @@ import { LineElement } from '@/components/elements/LineElement';
 import { nanoid } from 'nanoid';
 import type { CanvasElement, VectorElement as VectorElementType, LineElement as LineElementType, Shadow } from '@/types/document';
 import { createImageFill, createSolidFill } from '@/types/fill';
+import { preloadFont } from '@/lib/fonts/googleFonts';
+import { measureTextHeight } from '@/lib/utils/text';
 
 const DEFAULT_SHADOW: Shadow = {
   offsetX: 0,
@@ -513,23 +515,40 @@ export function Canvas() {
       setTempElement(newElement);
     } else if (activeTool === 'text') {
       // Add text element immediately on click
+      const defaultFont = 'Inter';
+      preloadFont(defaultFont); // Preload the default font
+      const defaultContent = 'Add text';
+      const defaultFontSize = 24;
+      const defaultLineHeight = 1.2;
+      const defaultWidth = 200;
+      // Measure height to fit content
+      const measuredHeight = measureTextHeight({
+        text: defaultContent,
+        fontSize: defaultFontSize,
+        fontFamily: defaultFont,
+        fontWeight: 400,
+        fontStyle: 'normal',
+        lineHeight: defaultLineHeight,
+        width: defaultWidth,
+      });
       const newElement: CanvasElement = {
         id: nanoid(),
         type: 'text',
         x: point.x,
         y: point.y,
-        width: 200,
-        height: 50,
+        width: defaultWidth,
+        height: measuredHeight,
         rotation: 0,
         opacity: 1,
         locked: false,
         zIndex: elements.length,
-        content: 'Double-click to edit',
-        fontFamily: 'Inter',
-        fontSize: 24,
+        content: defaultContent,
+        fontFamily: defaultFont,
+        fontSize: defaultFontSize,
         fontWeight: 400,
         fontStyle: 'normal',
         textAlign: 'left',
+        lineHeight: defaultLineHeight,
         fill: '#000000',
         shadow: { ...DEFAULT_SHADOW },
       };
@@ -966,6 +985,52 @@ export function Canvas() {
     }
   };
 
+  const defaultAnchors: Konva.Transformer['enabledAnchors'] = [
+    'top-left',
+    'top-right',
+    'bottom-left',
+    'bottom-right',
+    'top-center',
+    'bottom-center',
+    'middle-left',
+    'middle-right',
+  ];
+  const textOnlyAnchors: Konva.Transformer['enabledAnchors'] = ['middle-left', 'middle-right'];
+
+  const transformerConfig = (() => {
+    const targetIds =
+      selectedElementIds.length > 0
+        ? selectedElementIds
+        : hoveredElementId
+        ? [hoveredElementId]
+        : [];
+
+    if (targetIds.length === 1) {
+      const target = elements.find((el) => el.id === targetIds[0]);
+      if (target?.type === 'text') {
+        return {
+          enabledAnchors: textOnlyAnchors,
+          boundBoxFunc: (oldBox: Konva.Box, newBox: Konva.Box) => {
+            newBox.width = Math.max(20, newBox.width);
+            newBox.height = oldBox.height; // lock height for text
+            return newBox;
+          },
+        };
+      }
+    }
+
+    return {
+      enabledAnchors: defaultAnchors,
+      boundBoxFunc: (oldBox: Konva.Box, newBox: Konva.Box) => {
+        // Limit minimum size
+        if (newBox.width < 5 || newBox.height < 5) {
+          return oldBox;
+        }
+        return newBox;
+      },
+    };
+  })();
+
   return (
     <div
       ref={containerRef}
@@ -1069,24 +1134,9 @@ export function Canvas() {
           {/* Selection transformer */}
           <Transformer
             ref={transformerRef}
-            boundBoxFunc={(oldBox, newBox) => {
-              // Limit minimum size
-              if (newBox.width < 5 || newBox.height < 5) {
-                return oldBox;
-              }
-              return newBox;
-            }}
+            boundBoxFunc={transformerConfig.boundBoxFunc}
             rotateEnabled={true}
-            enabledAnchors={[
-              'top-left',
-              'top-right',
-              'bottom-left',
-              'bottom-right',
-              'top-center',
-              'bottom-center',
-              'middle-left',
-              'middle-right',
-            ]}
+            enabledAnchors={transformerConfig.enabledAnchors}
           />
         </Layer>
       </Stage>

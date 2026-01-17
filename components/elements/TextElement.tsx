@@ -1,12 +1,14 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { Text, Group } from 'react-konva';
+import { Html } from 'react-konva-utils';
 import type Konva from 'konva';
 import type { TextElement as TextElementType, CanvasElement } from '@/types/document';
 import { getEnabledFills, useFillProps } from '@/components/renderers/FillRenderer';
 import { useStrokeProps } from '@/components/renderers/StrokeRenderer';
 import { useEffectProps } from '@/components/renderers/EffectRenderer';
+import { measureTextHeight } from '@/lib/utils/text';
 
 interface TextElementProps {
   element: TextElementType;
@@ -28,7 +30,11 @@ export function TextElement({
   onHoverEnd,
 }: TextElementProps) {
   const textRef = useRef<Konva.Text>(null);
+  const groupRef = useRef<Konva.Group>(null);
+  const isTransformingRef = useRef(false);
+  const transformRafRef = useRef<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(element.content);
 
   // Track if middle mouse was pressed to prevent dragging
   const middleMouseRef = useRef(false);
@@ -70,6 +76,47 @@ export function TextElement({
       }
     : {};
 
+  // Derive text color from fill props or legacy fill
+  const textColor = fillProps.fill || element.fill || '#000000';
+
+  // Auto-grow height when content/width/font properties change externally
+  // (e.g., from the properties panel)
+  const prevHeightRef = useRef(element.height);
+  useEffect(() => {
+    // Skip if currently editing (handled by commitEdit)
+    if (isEditing || isTransformingRef.current) return;
+
+    const expectedHeight = measureTextHeight({
+      text: element.content,
+      fontSize: element.fontSize,
+      fontFamily: element.fontFamily,
+      fontWeight: element.fontWeight,
+      fontStyle: element.fontStyle,
+      lineHeight: element.lineHeight ?? 1.2,
+      letterSpacing: element.letterSpacing ?? 0,
+      width: element.width,
+    });
+
+    // Only update if height needs to grow (content overflow) or shrink significantly
+    // Use a small threshold to avoid infinite update loops from rounding
+    const heightDiff = Math.abs(expectedHeight - element.height);
+    if (heightDiff > 2 && expectedHeight !== prevHeightRef.current) {
+      prevHeightRef.current = expectedHeight;
+      onTransform({ height: expectedHeight });
+    }
+  }, [
+    element.content,
+    element.width,
+    element.fontSize,
+    element.fontFamily,
+    element.fontWeight,
+    element.fontStyle,
+    element.lineHeight,
+    element.letterSpacing,
+    isEditing,
+    onTransform,
+  ]);
+
   // Prevent dragging when middle mouse button is pressed (for canvas panning)
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button === 1) {
@@ -86,156 +133,221 @@ export function TextElement({
   };
 
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
-    onTransform({
-      x: e.target.x(),
-      y: e.target.y(),
-    });
+    const node = groupRef.current ?? e.target;
+    onTransform({ x: node.x(), y: node.y() });
     onTransformEnd();
   };
 
   const handleTransformEnd = () => {
-    const node = textRef.current;
-    if (!node) return;
+    const groupNode = groupRef.current;
+    const textNode = textRef.current;
+    if (!groupNode || !textNode) return;
 
-    const scaleX = node.scaleX();
-    const scaleY = node.scaleY();
+    isTransformingRef.current = false;
 
-    node.scaleX(1);
-    node.scaleY(1);
+    const scaleX = groupNode.scaleX();
+
+    groupNode.scaleX(1);
+    groupNode.scaleY(1);
+
+    const currentWidth = textNode.width() || element.width;
+    const newWidth = Math.max(20, currentWidth * scaleX);
+    textNode.width(newWidth);
+    const newFontSize = element.fontSize;
+
+    // Recalculate height based on new width and current font size
+    const newHeight = measureTextHeight({
+      text: element.content,
+      fontSize: newFontSize,
+      fontFamily: element.fontFamily,
+      fontWeight: element.fontWeight,
+      fontStyle: element.fontStyle,
+      lineHeight: element.lineHeight ?? 1.2,
+      letterSpacing: element.letterSpacing ?? 0,
+      width: newWidth,
+    });
 
     onTransform({
-      x: node.x(),
-      y: node.y(),
-      width: Math.max(20, node.width() * scaleX),
-      height: Math.max(20, node.height() * scaleY),
-      rotation: node.rotation(),
-      fontSize: Math.max(8, element.fontSize * scaleY),
+      x: groupNode.x(),
+      y: groupNode.y(),
+      width: newWidth,
+      height: newHeight,
+      rotation: groupNode.rotation(),
+      fontSize: newFontSize,
     });
     onTransformEnd();
   };
 
-  const handleDblClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    // Get stage and text node
-    const textNode = textRef.current;
-    const stage = textNode?.getStage();
-    if (!textNode || !stage) return;
-
-    setIsEditing(true);
-
-    // Hide text node temporarily
-    textNode.hide();
-
-    // Get position of text node
-    const textPosition = textNode.absolutePosition();
-    const stageBox = stage.container().getBoundingClientRect();
-
-    // Create textarea element
-    const textarea = document.createElement('textarea');
-    document.body.appendChild(textarea);
-
-    // Position and style textarea
-    textarea.value = element.content;
-    textarea.style.position = 'absolute';
-    textarea.style.top = `${stageBox.top + textPosition.y}px`;
-    textarea.style.left = `${stageBox.left + textPosition.x}px`;
-    textarea.style.width = `${textNode.width() * textNode.getAbsoluteScale().x}px`;
-    textarea.style.height = `${textNode.height() * textNode.getAbsoluteScale().y}px`;
-    textarea.style.fontSize = `${element.fontSize * textNode.getAbsoluteScale().y}px`;
-    textarea.style.fontFamily = element.fontFamily;
-    textarea.style.fontWeight = String(element.fontWeight);
-    textarea.style.fontStyle = element.fontStyle;
-    textarea.style.textAlign = element.textAlign;
-    textarea.style.color = element.fill || '#000000';
-    textarea.style.border = '2px solid #3b82f6';
-    textarea.style.borderRadius = '4px';
-    textarea.style.padding = '4px';
-    textarea.style.margin = '0';
-    textarea.style.overflow = 'hidden';
-    textarea.style.background = 'white';
-    textarea.style.outline = 'none';
-    textarea.style.resize = 'none';
-    textarea.style.lineHeight = String(element.lineHeight ?? 1.2);
-    textarea.style.transformOrigin = 'left top';
-    textarea.style.transform = `rotate(${element.rotation}deg)`;
-    textarea.style.zIndex = '10000';
-
-    textarea.focus();
-
-    let textareaRemoved = false;
-    const handleKeydown = (e: KeyboardEvent) => {
-      // Exit on Escape
-      if (e.key === 'Escape') {
-        removeTextarea();
-        return;
-      }
-      // Submit on Enter without shift
-      if (e.key === 'Enter' && !e.shiftKey) {
-        onTransform({ content: textarea.value });
-        onTransformEnd();
-        removeTextarea();
-        return;
-      }
-    };
-
-    const handleBlur = () => {
-      onTransform({ content: textarea.value });
-      onTransformEnd();
-      removeTextarea();
-    };
-
-    const cleanupListeners = () => {
-      textarea.removeEventListener('keydown', handleKeydown);
-      textarea.removeEventListener('blur', handleBlur);
-    };
-
-    const removeTextarea = () => {
-      if (textareaRemoved) return;
-      textareaRemoved = true;
-      cleanupListeners();
-      if (textarea.parentNode) {
-        textarea.parentNode.removeChild(textarea);
-      }
-      textNode.show();
-      setIsEditing(false);
-    };
-
-    textarea.addEventListener('keydown', handleKeydown);
-    textarea.addEventListener('blur', handleBlur);
+  const handleTransformStart = () => {
+    isTransformingRef.current = true;
   };
+
+  const handleTransform = () => {
+    const groupNode = groupRef.current;
+    const textNode = textRef.current;
+    if (!groupNode || !textNode) return;
+
+    if (transformRafRef.current != null) return;
+    transformRafRef.current = window.requestAnimationFrame(() => {
+      transformRafRef.current = null;
+
+      const scaleX = groupNode.scaleX();
+      const scaleY = groupNode.scaleY();
+
+      // Prevent live stretching while resizing
+      if (scaleY !== 1) {
+        groupNode.scaleY(1);
+      }
+
+      const currentWidth = textNode.width() || element.width;
+      const newWidth = Math.max(20, currentWidth * scaleX);
+      groupNode.scaleX(1);
+      textNode.width(newWidth);
+    });
+  };
+
+  const handleDblClick = useCallback(() => {
+    setEditValue(element.content);
+    setIsEditing(true);
+  }, [element.content]);
+
+  const commitEdit = useCallback(() => {
+    if (!isEditing) return;
+
+    // Calculate new height based on content
+    const newHeight = measureTextHeight({
+      text: editValue,
+      fontSize: element.fontSize,
+      fontFamily: element.fontFamily,
+      fontWeight: element.fontWeight,
+      fontStyle: element.fontStyle,
+      lineHeight: element.lineHeight ?? 1.2,
+      letterSpacing: element.letterSpacing ?? 0,
+      width: element.width,
+    });
+
+    onTransform({ content: editValue, height: newHeight });
+    onTransformEnd();
+    setIsEditing(false);
+  }, [isEditing, editValue, element, onTransform, onTransformEnd]);
+
+  const cancelEdit = useCallback(() => {
+    setEditValue(element.content);
+    setIsEditing(false);
+  }, [element.content]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Escape') {
+      cancelEdit();
+      return;
+    }
+    // Submit on Enter without shift
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      commitEdit();
+      return;
+    }
+  }, [cancelEdit, commitEdit]);
+
+  const handleTextareaChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setEditValue(e.target.value);
+  }, []);
+
+  const handleBlur = useCallback(() => {
+    commitEdit();
+  }, [commitEdit]);
 
   // Combine element opacity with fill opacity
   const combinedOpacity = element.opacity * (fillProps.opacity || 1);
 
+  // Calculate line height in pixels for textarea
+  const lineHeightValue = element.lineHeight ?? 1.2;
+
+  // Build textarea styles to match Konva text rendering
+  const getTextareaStyle = (): React.CSSProperties => {
+    return {
+      width: `${element.width}px`,
+      minHeight: `${element.height}px`,
+      border: 'none',
+      padding: '0px',
+      margin: '0px',
+      background: 'none',
+      outline: 'none',
+      resize: 'none',
+      overflow: 'hidden',
+      color: typeof textColor === 'string' ? textColor : '#000000',
+      fontSize: `${element.fontSize}px`,
+      fontFamily: element.fontFamily,
+      fontWeight: element.fontWeight,
+      fontStyle: element.fontStyle,
+      textAlign: element.textAlign,
+      lineHeight: lineHeightValue,
+      letterSpacing: element.letterSpacing ? `${element.letterSpacing}px` : undefined,
+      whiteSpace: 'pre-wrap',
+      wordWrap: 'break-word',
+    };
+  };
+
   return (
-    <Text
+    <Group
       id={element.id}
-      ref={textRef}
+      ref={groupRef}
       x={element.x}
       y={element.y}
-      width={element.width}
-      height={element.height}
       rotation={element.rotation}
-      text={element.content}
-      fontFamily={element.fontFamily}
-      fontSize={element.fontSize}
-      fontStyle={element.fontStyle === 'italic' ? 'italic' : 'normal'}
-      fontVariant={element.fontWeight >= 600 ? 'bold' : 'normal'}
-      align={element.textAlign}
-      {...fillProps}
-      {...strokeProps}
-      {...effectProps}
-      opacity={combinedOpacity}
-      draggable={!element.locked}
+      draggable={!element.locked && !isEditing}
       onClick={onSelect as (e: Konva.KonvaEventObject<MouseEvent>) => void}
       onTap={onSelect as (e: Konva.KonvaEventObject<TouchEvent>) => void}
       onMouseDown={handleMouseDown}
       onDblClick={handleDblClick}
-      onDblTap={handleDblClick as any}
+      onDblTap={handleDblClick as unknown as (e: Konva.KonvaEventObject<TouchEvent>) => void}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onTransformStart={handleTransformStart}
+      onTransform={handleTransform}
       onTransformEnd={handleTransformEnd}
       onMouseEnter={onHover as (e: Konva.KonvaEventObject<MouseEvent>) => void}
       onMouseLeave={onHoverEnd as (e: Konva.KonvaEventObject<MouseEvent>) => void}
-    />
+    >
+      {/* Render the Konva Text when not editing */}
+      {!isEditing && (
+        <Text
+          ref={textRef}
+          x={0}
+          y={0}
+          width={element.width}
+          height={element.height}
+          text={element.content}
+          fontFamily={element.fontFamily}
+          fontSize={element.fontSize}
+          fontStyle={element.fontStyle === 'italic' ? 'italic' : 'normal'}
+          fontVariant={element.fontWeight >= 600 ? 'bold' : 'normal'}
+          align={element.textAlign}
+          lineHeight={lineHeightValue}
+          letterSpacing={element.letterSpacing ?? 0}
+          {...fillProps}
+          {...strokeProps}
+          {...effectProps}
+          opacity={combinedOpacity}
+        />
+      )}
+
+      {/* Render Html textarea overlay when editing */}
+      {isEditing && (
+        <Html
+          groupProps={{ x: 0, y: 0 }}
+          divProps={{ style: { opacity: 1 } }}
+        >
+          <textarea
+            value={editValue}
+            onChange={handleTextareaChange}
+            onKeyDown={handleKeyDown}
+            onBlur={handleBlur}
+            style={getTextareaStyle()}
+            autoFocus
+          />
+        </Html>
+      )}
+    </Group>
   );
 }

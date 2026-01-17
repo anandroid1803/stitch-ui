@@ -60,7 +60,7 @@ export function StrokeLayersPanel({
 
   const labelStyle = {
     fontSize: 11,
-    fontWeight: 500,
+    fontWeight: 600,
     color: '#737373',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.05em',

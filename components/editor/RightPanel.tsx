@@ -14,11 +14,12 @@ import type { CanvasElement, TextElement as TextElementType, VectorElement as Ve
 import { IconRadiusTopLeft } from '@tabler/icons-react';
 import { FillLayersPanel } from './FillLayersPanel';
 import { StrokeLayersPanel } from './StrokeLayersPanel';
+import { FontPicker } from '@/components/ui/FontPicker';
 
 // Use explicit pixel values to avoid design system spacing conflicts
 const styles = {
   panel: { width: 208 },
-  icon: { width: 12, height: 12},
+  icon: { width: 12, height: 12 },
   iconSm: { width: 12, height: 12 },
   input: { height: 32 },
   colorInput: { width: 32, height: 32 },
@@ -191,7 +192,13 @@ function SlidesView() {
     <>
       {/* Header */}
       <div className="flex items-center justify-between px-[12px] pt-[12px] pb-[8px]">
-        <span style={{ fontSize: 14, fontWeight: 600 }} className="text-text-tertiary font-semibold">Slides</span>
+        <span style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: '#737373',
+          textTransform: 'uppercase' as const,
+          letterSpacing: '0.05em',
+        }}>Slides</span>
         <button
           onClick={() => addSlide(currentSlideId ?? undefined)}
           className="hover:bg-primary/10 rounded-lg transition-colors group"
@@ -218,9 +225,9 @@ function SlidesView() {
               const colorInputRef = useRef<HTMLInputElement>(null);
 
               return (
-                <Content className="bg-[#F2F3F5] p-1 rounded-[16px] shadow-lg z-50 overflow-hidden" style={{ minWidth: 180}}>
+                <Content className="bg-[#F2F3F5] p-1 rounded-[16px] shadow-lg z-50 overflow-hidden" style={{ minWidth: 180 }}>
                   <Item
-                    className="flex items-center hover:bg-white/50 cursor-pointer outline-none text-text-secondary hover:text-primary bg-white rounded-t-[14px] rounded-b-sm mb-1 outline-none transition-all group" 
+                    className="flex items-center hover:bg-white/50 cursor-pointer outline-none text-text-secondary hover:text-primary bg-white rounded-t-[14px] rounded-b-sm mb-1 outline-none transition-all group"
                     style={{ gap: 8, padding: '12px 12px', fontSize: 14, fontWeight: 500 }}
                     onSelect={(e) => {
                       e.preventDefault();
@@ -293,8 +300,8 @@ function SlidesView() {
                 <ContextMenu.Root>
                   <ContextMenu.Trigger asChild>
                     <div className="flex items-start" style={{ gap: 4 }}>
-                      <span 
-                        style={{ fontSize: 12, marginTop: 4, width: 16 }} 
+                      <span
+                        style={{ fontSize: 12, marginTop: 4, width: 16 }}
                         className={currentSlideId === slide.id ? 'text-text-primary font-bold' : 'text-text-secondary'}
                       >
                         {index + 1}.
@@ -325,7 +332,7 @@ function SlidesView() {
                             />
                           )}
                         </button>
-                        
+
                         {/* Action button (dropdown) - positioned outside to avoid nested buttons */}
                         <DropdownMenu.Root modal={false}>
                           <DropdownMenu.Trigger asChild>
@@ -456,7 +463,7 @@ function PropertiesView() {
 
   const labelStyle = {
     fontSize: 11,
-    fontWeight: 500,
+    fontWeight: 600,
     color: '#737373',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.05em',
@@ -571,15 +578,15 @@ function PropertiesView() {
           <div className="flex flex-col gap-4 px-2 py-4 bg-white/50 border border-white rounded-sm mt-2 w-full">
             <label style={labelStyle}>RADIUS</label>
             <div style={{ position: 'relative', backgroundColor: '#F2F3F5', padding: '2px', borderRadius: '10px' }}>
-                  <IconRadiusTopLeft style={{ width:'16px', position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#CACACC', zIndex: 1 }} />
-                  <input
-                    type="number"
-                    min={0}
-                    value={(element as VectorElementType).cornerRadius ?? 0}
-                    onChange={(e) => handleUpdate({ cornerRadius: parseFloat(e.target.value) || 0 })}
-                    style={{ ...inputStyle, paddingLeft: 32 }}
-                  />
-                </div>
+              <IconRadiusTopLeft style={{ width: '16px', position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#CACACC', zIndex: 1 }} />
+              <input
+                type="number"
+                min={0}
+                value={(element as VectorElementType).cornerRadius ?? 0}
+                onChange={(e) => handleUpdate({ cornerRadius: parseFloat(e.target.value) || 0 })}
+                style={{ ...inputStyle, paddingLeft: 32 }}
+              />
+            </div>
           </div>
         </div>
 
@@ -663,7 +670,7 @@ function ShapeProperties({ element, onUpdate }: ShapePropertiesProps) {
 
   const labelStyle = {
     fontSize: 11,
-    fontWeight: 500,
+    fontWeight: 600,
     color: '#737373',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.05em',
@@ -840,17 +847,10 @@ function TextProperties({ element, onUpdate }: TextPropertiesProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <label style={labelStyle}>Font</label>
-        <select
+        <FontPicker
           value={element.fontFamily}
-          onChange={(e) => onUpdate({ fontFamily: e.target.value })}
-          style={inputStyle}
-        >
-          <option value="Inter">Inter</option>
-          <option value="Arial">Arial</option>
-          <option value="Georgia">Georgia</option>
-          <option value="Times New Roman">Times New Roman</option>
-          <option value="Courier New">Courier New</option>
-        </select>
+          onChange={(fontFamily) => onUpdate({ fontFamily })}
+        />
 
         <div className="grid grid-cols-2" style={{ gap: 8 }}>
           <div>
@@ -1045,7 +1045,13 @@ function LayersView() {
     <>
       {/* Header */}
       <div className="flex items-center justify-between px-[12px] pt-[12px] pb-[8px]">
-        <span style={{ fontSize: 14, fontWeight: 600 }} className="text-text-tertiary font-semibold">Elements</span>
+        <span style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: '#737373',
+          textTransform: 'uppercase' as const,
+          letterSpacing: '0.05em',
+        }}>Layers</span>
       </div>
 
       {/* Layers list */}

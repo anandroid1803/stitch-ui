@@ -1,5 +1,25 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Environment Variables
+
+Copy `.env.example` to `.env.local` and configure the following:
+
+### Google Fonts API Key (Optional)
+
+To enable the full Google Fonts catalog in the text editor:
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create or select a project
+3. Enable the "Web Fonts Developer API"
+4. Create an API key under "Credentials"
+5. Add the key to your `.env.local`:
+
+```
+NEXT_PUBLIC_GOOGLE_FONTS_API_KEY=your_api_key_here
+```
+
+**Without an API key**, the editor will fall back to a limited set of system fonts (Arial, Georgia, Times New Roman, Courier New, Verdana, Trebuchet MS).
+
 ## Getting Started
 
 First, run the development server:

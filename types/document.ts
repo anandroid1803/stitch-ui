@@ -145,7 +145,7 @@ export const DEFAULT_DOCUMENT_SETTINGS: DocumentSettings = {
 };
 
 export const DEFAULT_TEXT_STYLE = {
-  content: 'Double-click to edit',
+  content: 'Add text',
   fontFamily: 'Inter',
   fontSize: 24,
   fontWeight: 400,
